@@ -1,5 +1,5 @@
 'use client';
-import { Bell, Camera, KeyRound, Phone, RotateCcw, Type } from 'lucide-react';
+import { Bell, Camera, Fingerprint, KeyRound, Phone, RotateCcw, Type } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Avatar, PageTitle, Segmented, readImageAsDataUrl, useToast } from '@/components/ui';
@@ -22,9 +22,43 @@ function Settings({ user }: { user: User }) {
   const [curPw, setCurPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
+  const [passkeyDone, setPasskeyDone] = useState(false);
 
-  useEffect(() => setPerm(notifyPermission()), []);
+  useEffect(() => {
+    setPerm(notifyPermission());
+    setPasskeyDone(Boolean(localStorage.getItem(`fd-passkey-${user.uuid}`)));
+  }, [user.uuid]);
   useEffect(() => setPhone(user.phone ?? ''), [user.phone]);
+
+  const registerPasskey = async () => {
+    if (!window.PublicKeyCredential) {
+      toast('この端末はPasskeyに対応していません');
+      return;
+    }
+    try {
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+      const userId = new TextEncoder().encode(user.uuid);
+      await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: 'FORDAYS パートナー手帳' },
+          user: { id: userId, name: user.email || user.memberNo || user.uuid, displayName: user.name },
+          pubKeyCredParams: [
+            { alg: -7, type: 'public-key' },
+            { alg: -257, type: 'public-key' },
+          ],
+          authenticatorSelection: { userVerification: 'preferred' },
+          timeout: 60000,
+        },
+      });
+      localStorage.setItem(`fd-passkey-${user.uuid}`, '1');
+      setPasskeyDone(true);
+      toast('この端末にPasskeyを登録しました');
+    } catch {
+      toast('Passkeyの登録がキャンセルされました');
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +147,20 @@ function Settings({ user }: { user: User }) {
           )}
         </section>
 
-        {/* パスワード変更（事務局・リーダー・メンバー共通） */}
+        {/* Passkey（生体認証）登録 */}
+        <section className="card flex flex-col gap-3">
+          <div className="flex items-center justify-between font-bold">
+            <span className="flex items-center gap-2">
+              <Fingerprint size={22} className="accent" /> Passkey（顔・指紋認証）
+            </span>
+            <span className="text-base text-black/55">{passkeyDone ? '登録済み' : '未登録'}</span>
+          </div>
+          <button type="button" className="btn-glass" onClick={registerPasskey}>
+            <Fingerprint size={22} className="accent" /> {passkeyDone ? 'この端末に再登録する' : 'この端末にPasskeyを登録する'}
+          </button>
+        </section>
+
+        {/* パスワード変更（サポートセンター・リーダー・メンバー共通） */}
         <form className="card flex flex-col gap-3" onSubmit={handlePasswordChange}>
           <div className="flex items-center gap-2 font-bold">
             <KeyRound size={22} className="accent" /> パスワードの変更

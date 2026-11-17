@@ -5,7 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { DeadlineCard } from '@/components/DeadlineCard';
 import { Avatar, Tile } from '@/components/ui';
 import { lineOpenAppUrl } from '@/lib/lineText';
-import { findUser, invitationsOfMember, useDB } from '@/lib/store';
+import { findUser, invitationsOfMember, unreadCountFor, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
 
 export default function Page() {
@@ -15,6 +15,7 @@ export default function Page() {
 function Home({ user }: { user: User }) {
   const db = useDB();
   const pending = invitationsOfMember(db, user.uuid).filter((i) => i.status === 'pending').length;
+  const unread = unreadCountFor(db, user.uuid);
   const leader = findUser(db, user.leaderUuid);
 
   return (
@@ -39,7 +40,7 @@ function Home({ user }: { user: User }) {
 
       <div className="grid grid-cols-2 gap-3">
         <Tile href="/m/events/" icon={CalendarDays} label="イベント" badge={pending || undefined} />
-        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" />
+        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" badge={unread || undefined} />
         <Tile href="/m/refer/" icon={UserPlus} label="お友だち紹介" />
         <Tile href="/m/rewards/" icon={Gift} label="わたしの成績" />
         <Tile href="/m/products/" icon={ShoppingBag} label="製品" />

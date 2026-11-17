@@ -17,7 +17,7 @@ export interface DB {
   messages: MessageItem[];
 }
 
-const KEY = 'fd-guests-db-v4';
+const KEY = 'fd-guests-db-v5';
 const listeners = new Set<() => void>();
 let cache: DB | null = null;
 let syncStarted = false;
@@ -122,6 +122,22 @@ export const messagesBetween = (db: DB, userA: string, userB: string) =>
         (m.leaderUuid === userB && m.memberUuid === userA),
     )
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+/** 自分宛ての未読メッセージ総数 */
+export const unreadCountFor = (db: DB, myUuid: string) =>
+  (db.messages ?? []).filter(
+    (m) => (m.leaderUuid === myUuid || m.memberUuid === myUuid) && m.senderUuid !== myUuid && !m.readAt,
+  ).length;
+
+/** 特定の相手からの未読メッセージ数 */
+export const unreadCountFrom = (db: DB, myUuid: string, partnerUuid: string) =>
+  (db.messages ?? []).filter(
+    (m) =>
+      ((m.leaderUuid === myUuid && m.memberUuid === partnerUuid) ||
+        (m.leaderUuid === partnerUuid && m.memberUuid === myUuid)) &&
+      m.senderUuid === partnerUuid &&
+      !m.readAt,
+  ).length;
 
 // ---------- 更新系（整合性チェックはここで行う） ----------
 class IntegrityError extends Error {}
@@ -458,9 +474,32 @@ export async function sendChatMessage(input: {
     memberUuid: input.memberUuid,
     senderUuid: input.senderUuid,
     text: trimmed,
+    readAt: null,
     createdAt: now(),
   };
   commit({ ...db, messages: [...(db.messages ?? []), msg] });
   await putDoc('messages', msg);
   return msg;
+}
+
+/** 相手からの未読メッセージを既読にする（Firestore の readAt を更新） */
+export async function markMessagesRead(myUuid: string, partnerUuid: string) {
+  const db = load();
+  const t = now();
+  const changed: MessageItem[] = [];
+  const nextMessages = (db.messages ?? []).map((m) => {
+    const isThisPair =
+      (m.leaderUuid === myUuid && m.memberUuid === partnerUuid) ||
+      (m.leaderUuid === partnerUuid && m.memberUuid === myUuid);
+    if (isThisPair && m.senderUuid === partnerUuid && !m.readAt) {
+      const updated = { ...m, readAt: t };
+      changed.push(updated);
+      return updated;
+    }
+    return m;
+  });
+  if (changed.length === 0) return 0;
+  commit({ ...db, messages: nextMessages });
+  await Promise.all(changed.map((m) => putDoc('messages', m)));
+  return changed.length;
 }

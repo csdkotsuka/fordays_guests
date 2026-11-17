@@ -1,7 +1,7 @@
 import type { DB } from './index';
 import type { EventItem, Invitation, MessageItem, Referral, SubscriptionItem, User } from '../types';
 
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 // 全端末で同じ UUID になるよう決定的な UUID を生成する
 function fixedId(prefix: number, index: number): string {
@@ -101,15 +101,15 @@ function makeDummySubscriptions(idx: number, newId: () => string): SubscriptionI
   return items;
 }
 
-// 7人のリーダー（重複なし）
+// 7人のリーダー（重複なし。大塚 和宏・内藤 裕子はサポートセンター兼任）
 const LEADER_DEFS = [
-  { no: '1000001', name: '大塚 和宏', female: false, phone: '090-7549-8574', pts: 380 },
-  { no: '1000002', name: '松山 太郎', female: false, phone: '089-900-1122', pts: 320 },
-  { no: '1000003', name: '高橋 恵美', female: true, phone: '090-3311-2244', pts: 290 },
-  { no: '1000004', name: '中村 健一', female: false, phone: '090-4455-6677', pts: 250 },
-  { no: '1000005', name: '小林 由美子', female: true, phone: '080-5566-7788', pts: 230 },
-  { no: '1000006', name: '吉田 誠', female: false, phone: '090-6677-8899', pts: 210 },
-  { no: '1000007', name: '山本 香織', female: true, phone: '080-7788-9900', pts: 195 },
+  { no: '1000001', name: '大塚 和宏', email: 'kotsuka@creativesd.net', pw: '741019', isAdmin: true, female: false, phone: '090-7549-8574', pts: 380 },
+  { no: '1000002', name: '内藤 裕子', email: 'masao0822yuko0616@gmail.com', pw: '740616', isAdmin: true, female: true, phone: '090-8822-0616', pts: 340 },
+  { no: '1000003', name: '高橋 恵美', email: 'leader3@fordays-partner.jp', pw: '', isAdmin: false, female: true, phone: '090-3311-2244', pts: 290 },
+  { no: '1000004', name: '中村 健一', email: 'leader4@fordays-partner.jp', pw: '', isAdmin: false, female: false, phone: '090-4455-6677', pts: 250 },
+  { no: '1000005', name: '小林 由美子', email: 'leader5@fordays-partner.jp', pw: '', isAdmin: false, female: true, phone: '080-5566-7788', pts: 230 },
+  { no: '1000006', name: '吉田 誠', email: 'leader6@fordays-partner.jp', pw: '', isAdmin: false, female: false, phone: '090-6677-8899', pts: 210 },
+  { no: '1000007', name: '山本 香織', email: 'leader7@fordays-partner.jp', pw: '', isAdmin: false, female: true, phone: '080-7788-9900', pts: 195 },
 ];
 
 // 30人のメンバー（重複なし）
@@ -151,32 +151,19 @@ const gmap = (q: string) => `https://www.google.com/maps/search/?api=1&query=${e
 export function createSeed(_newId: () => string): DB {
   const t = new Date().toISOString();
 
-  const admin: User = {
-    uuid: fixedId(1, 1),
-    memberNo: '9000001',
-    name: 'サポートセンター',
-    email: 'admin@fordays-partner.jp',
-    emailVerified: true,
-    privacyAcceptedAt: t,
-    avatarUrl: makePortraitAvatar(0, false),
-    roles: ['admin'],
-    leaderUuid: null,
-    calendarId: null,
-    points: 0,
-    createdAt: t,
-  };
-
+  // サポートセンター兼リーダー兼メンバーの2名を含む7人のリーダー
   const leaders: User[] = LEADER_DEFS.map((ld, idx) => ({
     uuid: fixedId(2, idx + 1),
     memberNo: ld.no,
     name: ld.name,
-    email: `leader${idx + 1}@fordays-partner.jp`,
+    email: ld.email,
     emailVerified: true,
+    ...(ld.pw ? { password: ld.pw } : {}),
     privacyAcceptedAt: t,
     phone: ld.phone,
     avatarUrl: makePortraitAvatar(idx + 1, ld.female),
     subscriptions: makeDummySubscriptions(idx, () => fixedId(9, idx * 10 + Math.floor(Math.random() * 1000))),
-    roles: ['leader'],
+    roles: ld.isAdmin ? ['member', 'leader', 'admin'] : ['member', 'leader'],
     leaderUuid: null,
     calendarId: null,
     points: ld.pts,
@@ -423,14 +410,21 @@ export function createSeed(_newId: () => string): DB {
   members.forEach((m, idx) => {
     if (!m.leaderUuid) return;
     const conv = DIALOGUES[idx % DIALOGUES.length];
+    const hasUnreadForLeader = idx % 2 === 0; // 半分のメンバーはリーダー宛て未読あり
+    const hasUnreadForMember = idx % 2 === 1; // 残り半分のメンバーはメンバー宛て未読あり
     conv.forEach(([fromMember, text], stepIdx) => {
       const msgTime = new Date(Date.now() - (conv.length - stepIdx) * 3600 * 1000 * 6 - idx * 60000).toISOString();
+      const isLast = stepIdx === conv.length - 1;
+      const isUnread =
+        (isLast && fromMember && hasUnreadForLeader) ||
+        (stepIdx === conv.length - 2 && !fromMember && hasUnreadForMember);
       messages.push({
         uuid: fixedId(7, msgSeq++),
         leaderUuid: m.leaderUuid!,
         memberUuid: m.uuid,
         senderUuid: fromMember ? m.uuid : m.leaderUuid!,
         text: text.replace('大塚さん', `${leaders.find((l) => l.uuid === m.leaderUuid)?.name.split(' ')[0] ?? ''}さん`),
+        readAt: isUnread ? null : msgTime,
         createdAt: msgTime,
       });
     });
@@ -438,7 +432,7 @@ export function createSeed(_newId: () => string): DB {
 
   return {
     version: SEED_VERSION,
-    users: [admin, ...leaders, ...members],
+    users: [...leaders, ...members],
     referrals,
     events,
     invitations,

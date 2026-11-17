@@ -3,6 +3,7 @@ import { ChevronRight, HeartHandshake, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { APP_NAME } from '@/config/app';
 import { HOME, useSession } from '@/lib/session';
 
 export default function Entry() {
@@ -21,11 +22,10 @@ export default function Entry() {
         className="mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col px-5"
         style={{ paddingTop: 'calc(40px + var(--safe-top))', paddingBottom: 'calc(24px + var(--safe-bottom))' }}
       >
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-8">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 pb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mark.svg" alt="" className="h-32 w-32 drop-shadow-sm" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="FORDAYS" className="h-10 w-auto opacity-90" />
+          <img src="/logo.svg" alt="FORDAYS" className="h-14 w-auto drop-shadow-sm" />
+          <h1 className="text-[1.45rem] font-bold tracking-wide text-[#231815]">{APP_NAME}</h1>
         </div>
 
         <div className="flex flex-col gap-3.5">

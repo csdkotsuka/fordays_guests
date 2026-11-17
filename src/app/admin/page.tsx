@@ -31,7 +31,7 @@ function Admin() {
   const [selEventUuid, setSelEventUuid] = useState<string | null>(null);
 
   const leaders = useMemo(
-    () => db.users.filter((u) => u.roles.includes('leader') && !u.roles.includes('admin') && !u.leaderUuid),
+    () => db.users.filter((u) => u.roles.includes('leader') && !u.leaderUuid),
     [db.users],
   );
   const members = useMemo(() => db.users.filter((u) => u.roles.includes('member')), [db.users]);

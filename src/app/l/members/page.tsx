@@ -7,7 +7,7 @@ import { UserDetailContent } from '@/components/UserDetailContent';
 import { Avatar, Empty, PageTitle, readImageAsDataUrl, useToast } from '@/components/ui';
 import { Sheet } from '@/components/ui/Sheet';
 import { copyText, getAppOrigin } from '@/lib/lineText';
-import { addMember, findUser, membersOf, referralsOf, useDB } from '@/lib/store';
+import { addMember, findUser, membersOf, referralsOf, unreadCountFrom, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
 
 export default function Page() {
@@ -58,6 +58,7 @@ function Members({ user }: { user: User }) {
           {list.map((m) => {
             const refs = referralsOf(db, m.uuid);
             const activeSubs = (m.subscriptions ?? []).filter((s) => !s.endMonth);
+            const unread = unreadCountFrom(db, user.uuid, m.uuid);
             return (
               <div key={m.uuid} className="card flex items-center gap-3 !py-3.5">
                 <button
@@ -79,9 +80,14 @@ function Members({ user }: { user: User }) {
                 <Link
                   href={`/messages/?with=${m.uuid}`}
                   aria-label={`${m.name}さんにメッセージ`}
-                  className="glass grid h-12 w-12 shrink-0 place-items-center rounded-full text-[var(--accent)] active:scale-90"
+                  className="glass relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-[var(--accent)] active:scale-90"
                 >
                   <MessageCircle size={24} />
+                  {unread > 0 && (
+                    <span className="bg-fd-red absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[0.7rem] font-bold text-white">
+                      {unread}
+                    </span>
+                  )}
                 </Link>
               </div>
             );

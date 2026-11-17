@@ -68,9 +68,9 @@ export function startFirestoreSync(getInitialSeed: () => DB, onRemoteChange: (pa
 
   getDocs(collection(fdb, 'users'))
     .then(async (snap) => {
-      // 決定的UUID（00000001- / 00000002-）のシードが未投入ならクリーン投入
-      const hasFixedAdmin = snap.docs.some((d) => d.id === '00000001-0000-4000-8000-000000000001');
-      if (hasFixedAdmin) return;
+      // 最新シード（大塚・内藤のサポートセンター兼任データ）が未投入ならクリーン投入
+      const hasKotsuka = snap.docs.some((d) => d.data()?.email === 'kotsuka@creativesd.net');
+      if (hasKotsuka) return;
       const seed = getInitialSeed();
       await seedFirestoreBatch(fdb, seed);
     })

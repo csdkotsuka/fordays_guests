@@ -1,5 +1,5 @@
 'use client';
-import { ArrowLeftRight, LogOut, Menu } from 'lucide-react';
+import { ArrowLeftRight, LogOut, Menu, Shield } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -7,14 +7,14 @@ import { MENU } from '@/config/menu';
 import { checkDeadlineReminder, registerSW } from '@/lib/pwa';
 import { applyFontScale } from '@/lib/prefs';
 import { HOME, MODE_LABEL, setMode, signOut, useSession } from '@/lib/session';
-import { findUser, useDB } from '@/lib/store';
+import { findUser, unreadCountFor, useDB } from '@/lib/store';
 import type { Mode, User } from '@/lib/types';
 import { Sheet } from './ui/Sheet';
 import { useToast } from './ui';
 
 const MODE_COLOR: Record<Mode, string> = { member: '#f7323f', leader: '#2e7d4f', admin: '#3d3a39' };
 
-/** ログイン後の共通レイアウト。mode を省略すると現在のセッションの画面を使う（設定画面など） */
+/** ログイン後の共通レイアウト */
 export function AppShell({ mode, children }: { mode?: Mode; children: (ctx: { user: User; mode: Mode }) => ReactNode }) {
   const session = useSession();
   const db = useDB();
@@ -61,11 +61,14 @@ export function AppShell({ mode, children }: { mode?: Mode; children: (ctx: { us
 }
 
 function Header({ user, mode }: { user: User; mode: Mode }) {
+  const db = useDB();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const toast = useToast();
   const others = (['member', 'leader', 'admin'] as Mode[]).filter((r) => r !== mode && user.roles.includes(r));
+  const unread = unreadCountFor(db, user.uuid);
+  const isSupportAdmin = user.roles.includes('admin');
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -84,17 +87,31 @@ function Header({ user, mode }: { user: User; mode: Mode }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.svg" alt="FORDAYS" className="h-7 w-auto" />
           </Link>
-          <div className="flex flex-1 justify-center">
-            <span className="bg-accent rounded-full px-4 py-1.5 text-base font-bold text-white shadow-sm">
+          <div className="flex flex-1 items-center justify-center gap-1.5">
+            <span className="bg-accent whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-bold text-white shadow-sm">
               {MODE_LABEL[mode]}
             </span>
+            {/* 大塚・内藤（admin権限あり）の2名のみヘッダーにサポート切替ボタンを表示 */}
+            {isSupportAdmin && mode !== 'admin' && (
+              <button
+                onClick={() => switchTo('admin')}
+                className="glass flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold text-[#231815] active:scale-95"
+              >
+                <Shield size={14} /> サポート
+              </button>
+            )}
           </div>
           <button
             onClick={() => setOpen(true)}
             aria-label="メニュー"
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/70 active:scale-90"
+            className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white/70 active:scale-90"
           >
             <Menu size={30} />
+            {unread > 0 && (
+              <span className="bg-fd-red absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[0.7rem] font-bold text-white">
+                {unread}
+              </span>
+            )}
           </button>
         </div>
       </header>
@@ -106,13 +123,14 @@ function Header({ user, mode }: { user: User; mode: Mode }) {
         title={
           <span className="flex flex-col">
             <span>{user.name} さん</span>
-            <span className="text-base font-normal text-black/50">{user.memberNo}</span>
+            <span className="text-base font-normal text-black/50">{user.memberNo || user.email}</span>
           </span>
         }
       >
         <nav className="flex flex-col gap-2">
           {MENU[mode].map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
+            const showBadge = href === '/messages/' && unread > 0;
             return (
               <Link
                 key={href}
@@ -122,7 +140,12 @@ function Header({ user, mode }: { user: User; mode: Mode }) {
                 }`}
               >
                 <Icon size={28} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {showBadge && (
+                  <span className="bg-fd-red grid h-7 min-w-7 place-items-center rounded-full px-2 text-sm font-bold text-white">
+                    {unread}
+                  </span>
+                )}
               </Link>
             );
           })}

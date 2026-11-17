@@ -73,6 +73,7 @@ export interface MessageItem {
   memberUuid: string; // やりとりのメンバー（users.uuid）
   senderUuid: string; // 送信者（users.uuid）
   text: string;
+  readAt?: string | null; // 相手が既読にした日時（null / undefined なら未読）
   createdAt: string;
 }
 

@@ -3,7 +3,7 @@ import { CalendarDays, MessageCircle, Settings, Users } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Row, Tile } from '@/components/ui';
 import { fmtDate, fmtTime } from '@/lib/date';
-import { eventsOf, invitationsOfEvent, membersOf, useDB } from '@/lib/store';
+import { eventsOf, invitationsOfEvent, membersOf, unreadCountFor, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
 
 export default function Page() {
@@ -14,6 +14,7 @@ function LeaderHome({ user }: { user: User }) {
   const db = useDB();
   const members = membersOf(db, user.uuid);
   const events = eventsOf(db, user.uuid);
+  const unread = unreadCountFor(db, user.uuid);
   const upcoming = events.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 86400000);
 
   return (
@@ -23,7 +24,7 @@ function LeaderHome({ user }: { user: User }) {
       <div className="grid grid-cols-2 gap-3">
         <Tile href="/l/events/" icon={CalendarDays} label="イベント" badge={upcoming.length || undefined} />
         <Tile href="/l/members/" icon={Users} label="メンバー" badge={members.length || undefined} />
-        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" />
+        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" badge={unread || undefined} />
         <Tile href="/settings/" icon={Settings} label="設定" />
       </div>
 

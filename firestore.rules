@@ -58,6 +58,7 @@ rules_version = '2';
 //   - memberUuid: string (required, immutable, 1..100 chars)
 //   - senderUuid: string (required, immutable, matches leaderUuid or memberUuid)
 //   - text: string (required, 1..2000 chars)
+//   - readAt: string | null (optional, <= 60 chars)
 //   - createdAt: string (required, immutable, ISO 8601 string)
 //
 // ===============================================================
@@ -202,9 +203,10 @@ service cloud.firestore {
     }
 
     function isValidMessage(data, messageUuid) {
-      let fields = ['uuid', 'leaderUuid', 'memberUuid', 'senderUuid', 'text', 'createdAt'];
-      return hasRequiredFields(fields) &&
-             hasOnlyAllowedFields(fields) &&
+      let required = ['uuid', 'leaderUuid', 'memberUuid', 'senderUuid', 'text', 'createdAt'];
+      let allowed = ['uuid', 'leaderUuid', 'memberUuid', 'senderUuid', 'text', 'readAt', 'createdAt'];
+      return hasRequiredFields(required) &&
+             hasOnlyAllowedFields(allowed) &&
              data.uuid == messageUuid &&
              isNonEmptyString(data.uuid, 100) &&
              isNonEmptyString(data.leaderUuid, 100) &&
@@ -212,6 +214,7 @@ service cloud.firestore {
              isNonEmptyString(data.senderUuid, 100) &&
              (data.senderUuid == data.leaderUuid || data.senderUuid == data.memberUuid) &&
              isNonEmptyString(data.text, 2000) &&
+             (!('readAt' in data) || isNullableString(data.readAt, 60)) &&
              isNonEmptyString(data.createdAt, 60);
     }
 
