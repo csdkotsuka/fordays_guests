@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== FORDAYS × Liquid Glass ===== */
+:root {
+  --accent: #f7323f;
+  --accent-deep: #d61f2c;
+  --accent-soft: #ffe3e5;
+  --ink: #231815;
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+/* 画面ごとのテーマ色（メンバー＝レッド／リーダー＝グリーン／事務局＝墨） */
+[data-mode='leader'] {
+  --accent: #2e7d4f;
+  --accent-deep: #1f5c39;
+  --accent-soft: #e3f3e8;
+}
+[data-mode='admin'] {
+  --accent: #3d3a39;
+  --accent-deep: #231815;
+  --accent-soft: #ecebea;
+}
+
+html {
+  font-size: 18px; /* 高齢者向けに基準を大きく */
+  -webkit-text-size-adjust: 100%;
+  color: var(--ink);
+  background: #fbf7f6;
+}
+body {
+  min-height: 100dvh;
+  line-height: 1.6;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 背景：やわらかいロゴ色のにじみ（ガラスの映り込み用） */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60% 40% at 10% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    radial-gradient(50% 35% at 100% 15%, rgba(255, 143, 159, 0.35), transparent 70%),
+    radial-gradient(70% 45% at 50% 100%, rgba(255, 227, 229, 0.9), transparent 70%),
+    linear-gradient(180deg, #fffaf9 0%, #fbf3f2 100%);
+  transition: background 0.4s ease;
+}
+
+@layer components {
+  .glass {
+    background: rgba(255, 255, 255, 0.58);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.25),
+      0 10px 30px -10px rgba(35, 24, 21, 0.18);
+  }
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+    backdrop-filter: blur(30px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      0 20px 50px -12px rgba(35, 24, 21, 0.3);
+  }
+  .card {
+    @apply glass rounded-glass p-5;
+  }
+
+  .btn {
+    @apply relative inline-flex min-h-[64px] w-full select-none items-center justify-center gap-3 rounded-full px-6 text-[1.15rem] font-bold transition active:scale-[0.97] disabled:opacity-40;
+  }
+  .btn-primary {
+    @apply btn text-white;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, white) 0%, var(--accent) 55%, var(--accent-deep) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 -2px 6px rgba(0, 0, 0, 0.12),
+      0 10px 24px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .btn-glass {
+    @apply btn glass;
+    color: var(--ink);
+  }
+  .btn-soft {
+    @apply btn;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+  }
+  .chip {
+    @apply inline-flex min-h-[48px] items-center gap-2 rounded-full px-5 text-base font-bold transition active:scale-95;
+  }
+
+  .field {
+    @apply block w-full rounded-2xl border-2 border-black/10 bg-white/80 px-4 py-4 text-[1.2rem] outline-none transition;
+  }
+  .field:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .label {
+    @apply mb-2 block text-base font-bold text-black/70;
+  }
+  .h1 {
+    @apply text-[1.6rem] font-bold leading-tight;
+  }
+  .h2 {
+    @apply text-[1.25rem] font-bold;
+  }
+  .accent {
+    color: var(--accent);
+  }
+  .bg-accent {
+    background: var(--accent);
+  }
+  .bg-accent-soft {
+    background: var(--accent-soft);
+  }
+}
+
+/* シート／ダイアログのアニメーション */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(40px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.anim-fade { animation: fade-in 0.2s ease both; }
+.anim-sheet { animation: sheet-up 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15) both; }
+.anim-side { animation: slide-in-right 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
