@@ -68,9 +68,23 @@ export function startFirestoreSync(getInitialSeed: () => DB, onRemoteChange: (pa
 
   getDocs(collection(fdb, 'users'))
     .then(async (snap) => {
-      // 最新シード（大塚・内藤のサポートセンター兼任データ）が未投入ならクリーン投入
+      // 古い「事務局」データが残っている、または最新シード（kotsuka@creativesd.net）が無い場合は全コレクションを最新シードで入れ直す
+      const hasOldAdmin = snap.docs.some((d) => d.data()?.name === '事務局');
       const hasKotsuka = snap.docs.some((d) => d.data()?.email === 'kotsuka@creativesd.net');
-      if (hasKotsuka) return;
+      if (!hasOldAdmin && hasKotsuka) return;
+
+      if (hasOldAdmin) {
+        const allCols: (keyof Omit<DB, 'version'>)[] = ['users', 'referrals', 'events', 'invitations', 'messages'];
+        for (const colName of allCols) {
+          const s = await getDocs(collection(fdb, colName));
+          for (let i = 0; i < s.docs.length; i += 400) {
+            const delBatch = writeBatch(fdb);
+            for (const d of s.docs.slice(i, i + 400)) delBatch.delete(d.ref);
+            await delBatch.commit();
+          }
+        }
+      }
+
       const seed = getInitialSeed();
       await seedFirestoreBatch(fdb, seed);
     })

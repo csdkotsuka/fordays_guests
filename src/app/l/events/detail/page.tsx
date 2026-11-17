@@ -17,6 +17,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { CopyBox } from '@/components/CopyBox';
+import { UserDetailContent } from '@/components/UserDetailContent';
 import { Avatar, Empty, useToast } from '@/components/ui';
 import { Sheet } from '@/components/ui/Sheet';
 import { fmtDate, fmtTime, toLocalInput } from '@/lib/date';
@@ -62,10 +63,12 @@ function Detail({ user }: { user: User }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [lineOpen, setLineOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [selMemberUuid, setSelMemberUuid] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
   const [editForm, setEditForm] = useState({ title: '', startAt: '', place: '', mapUrl: '', note: '' });
 
   if (!ev) return <Empty icon={ChevronLeft} label="イベントが見つかりません" />;
+  const selMember = findUser(db, selMemberUuid);
 
   const invs = invitationsOfEvent(db, ev.uuid);
   const invitedSet = new Set(invs.map((i) => i.memberUuid));
@@ -188,11 +191,17 @@ function Detail({ user }: { user: User }) {
             return (
               <li key={inv.uuid} className="card flex flex-col gap-2 !py-4">
                 <div className="flex items-center gap-3">
-                  <Avatar name={m.name} src={m.avatarUrl} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[1.15rem] font-bold">{m.name}</div>
-                    {inv.remindedAt && inv.status === 'pending' && <div className="text-sm text-black/45">通知済み</div>}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelMemberUuid(m.uuid)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left active:scale-[0.98]"
+                  >
+                    <Avatar name={m.name} src={m.avatarUrl} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[1.15rem] font-bold">{m.name}</div>
+                      {inv.remindedAt && inv.status === 'pending' && <div className="text-sm text-black/45">通知済み</div>}
+                    </div>
+                  </button>
                   <Link
                     href={`/messages/?with=${m.uuid}`}
                     aria-label={`${m.name}さんにメッセージ`}
@@ -327,6 +336,10 @@ function Detail({ user }: { user: User }) {
 
       <Sheet open={lineOpen} onClose={() => setLineOpen(false)} title="LINE案内文">
         <CopyBox initial={eventLineText(ev, user.name)} />
+      </Sheet>
+
+      <Sheet open={!!selMember} onClose={() => setSelMemberUuid(null)} title={selMember?.name}>
+        {selMember && <UserDetailContent target={selMember} />}
       </Sheet>
     </>
   );

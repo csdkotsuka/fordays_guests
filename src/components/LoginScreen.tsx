@@ -45,9 +45,12 @@ export function LoginScreen({ role }: { role: Role }) {
     router.replace(HOME[role]);
   };
 
-  const demoUsers = db.users
-    .filter((u) => u.roles.includes(role) && (role !== 'leader' || !u.leaderUuid))
-    .slice(0, 7);
+  const demoUsers =
+    role === 'admin'
+      ? db.users.filter((u) => u.roles.includes('admin')).slice(0, 2)
+      : role === 'leader'
+        ? db.users.filter((u) => u.roles.includes('leader') && !u.leaderUuid).slice(0, 4)
+        : db.users.filter((u) => u.roles.includes('member') && !!u.leaderUuid).slice(0, 5);
 
   return (
     <>
