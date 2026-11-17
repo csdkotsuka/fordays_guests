@@ -4,8 +4,8 @@ import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FORDAYS パートナー',
-  applicationName: 'FORDAYS パートナー',
+  title: 'FD なかまノート',
+  applicationName: 'FD なかまノート',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     ],
     apple: '/apple-touch-icon.png',
   },
-  appleWebApp: { capable: true, title: 'FORDAYS', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'FDなかまノート', statusBarStyle: 'default' },
   formatDetection: { telephone: false },
 };
 

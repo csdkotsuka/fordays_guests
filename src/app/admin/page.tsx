@@ -114,7 +114,7 @@ function Admin() {
 
   return (
     <>
-      <PageTitle>事務局</PageTitle>
+      <PageTitle>オーナー</PageTitle>
 
       {/* クリックで絞り込みできるダッシュボードカード */}
       <div className="mb-5 grid grid-cols-3 gap-3 text-center">

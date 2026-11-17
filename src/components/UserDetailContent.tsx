@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, Camera, MessageCircle, Package } from 'lucide-react';
+import { CalendarDays, Camera, MessageCircle, Package, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useRef } from 'react';
 import { Avatar, readImageAsDataUrl, useToast } from '@/components/ui';
@@ -102,10 +102,19 @@ export function UserDetailContent({
         </div>
       </div>
 
-      {showMessageButton && (
-        <Link href={`/messages/?with=${target.uuid}`} className="btn-primary !min-h-[60px]">
-          <MessageCircle size={24} /> メッセージを送る
-        </Link>
+      {(showMessageButton || target.phone) && (
+        <div className={showMessageButton && target.phone ? 'grid grid-cols-2 gap-3' : 'flex flex-col'}>
+          {showMessageButton && (
+            <Link href={`/messages/?with=${target.uuid}`} className="btn-primary !min-h-[60px] !px-3 !text-base">
+              <MessageCircle size={22} /> メッセージ
+            </Link>
+          )}
+          {target.phone && (
+            <a href={`tel:${target.phone}`} className="btn-glass !min-h-[60px] !px-3 !text-base">
+              <Phone size={22} className="accent" /> 電話する
+            </a>
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-2 gap-3 text-center">

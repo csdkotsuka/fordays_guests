@@ -203,7 +203,7 @@ export async function registerMemberAccount(input: {
   email: string;
   password?: string;
   memberNo?: string;
-  leaderUuid: string;
+  leaderUuid?: string | null;
 }) {
   const db = load();
   const email = input.email.trim().toLowerCase();
@@ -212,8 +212,10 @@ export async function registerMemberAccount(input: {
   const no = (input.memberNo ?? '').trim();
   assert(no === '' || /^\d{7}$/.test(no), '会員番号は7桁の数字か空欄にしてください');
   if (no) assert(!findUserByNo(db, no), 'この会員番号は既に登録されています');
-  const leader = findUser(db, input.leaderUuid);
-  assert(leader && leader.roles.includes('leader'), '担当リーダーを選択してください');
+  const leader = input.leaderUuid ? findUser(db, input.leaderUuid) : null;
+  if (input.leaderUuid) {
+    assert(leader && leader.roles.includes('leader'), '担当リーダーが見つかりません');
+  }
 
   const t = now();
   const u: User = {
@@ -226,7 +228,7 @@ export async function registerMemberAccount(input: {
     privacyAcceptedAt: t,
     subscriptions: [],
     roles: ['member'],
-    leaderUuid: leader.uuid,
+    leaderUuid: leader ? leader.uuid : null,
     calendarId: null,
     points: 0,
     createdAt: t,

@@ -1,5 +1,5 @@
 'use client';
-import { ChevronLeft, MessageCircle, Send, Smile } from 'lucide-react';
+import { ChevronLeft, MessageCircle, Phone, Send, Smile } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -184,6 +184,15 @@ function ChatRoom({
         <div className="min-w-0 flex-1">
           <div className="truncate text-[1.15rem] font-bold">{partner.name}</div>
         </div>
+        {partner.phone && (
+          <a
+            href={`tel:${partner.phone}`}
+            aria-label={`${partner.name}さんに電話をかける`}
+            className="bg-accent grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm active:scale-90"
+          >
+            <Phone size={20} />
+          </a>
+        )}
       </div>
 
       {/* LINE風トークエリア（ページ全体のスクロールと自然に連動） */}

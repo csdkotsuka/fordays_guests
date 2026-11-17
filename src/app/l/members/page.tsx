@@ -1,11 +1,12 @@
 'use client';
-import { Camera, MessageCircle, UserPlus, Users } from 'lucide-react';
+import { Camera, Link2, MessageCircle, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { UserDetailContent } from '@/components/UserDetailContent';
 import { Avatar, Empty, PageTitle, readImageAsDataUrl, useToast } from '@/components/ui';
 import { Sheet } from '@/components/ui/Sheet';
+import { copyText, getAppOrigin } from '@/lib/lineText';
 import { addMember, findUser, membersOf, referralsOf, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
 
@@ -35,9 +36,20 @@ function Members({ user }: { user: User }) {
     <>
       <PageTitle>メンバー（{list.length}人）</PageTitle>
 
-      <button className="btn-primary mb-4 !min-h-[72px]" onClick={() => setAddOpen(true)}>
-        <UserPlus size={28} /> メンバーを追加
-      </button>
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <button className="btn-primary !min-h-[68px] !px-4 !text-base" onClick={() => setAddOpen(true)}>
+          <UserPlus size={24} /> メンバー追加
+        </button>
+        <button
+          className="btn-glass !min-h-[68px] !px-4 !text-base"
+          onClick={async () => {
+            const url = `${getAppOrigin()}/signup/?ref=${user.uuid}`;
+            if (await copyText(url)) toast('招待リンクをコピーしました');
+          }}
+        >
+          <Link2 size={22} className="accent" /> 招待リンク
+        </button>
+      </div>
 
       {list.length === 0 ? (
         <Empty icon={Users} label="メンバーがいません" />
