@@ -54,7 +54,7 @@ export function AppShell({ mode, children }: { mode?: Mode; children: (ctx: { us
         {children({ user, mode: current })}
       </main>
       <footer className="pb-6 text-center text-sm text-black/35" style={{ paddingBottom: 'calc(20px + var(--safe-bottom))' }}>
-        © FD なかまノート
+        © FORDAYS パートナー手帳
       </footer>
     </>
   );

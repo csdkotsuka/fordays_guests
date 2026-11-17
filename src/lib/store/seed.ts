@@ -154,7 +154,7 @@ export function createSeed(_newId: () => string): DB {
   const admin: User = {
     uuid: fixedId(1, 1),
     memberNo: '9000001',
-    name: 'オーナー',
+    name: 'サポートセンター',
     email: 'admin@fordays-partner.jp',
     emailVerified: true,
     privacyAcceptedAt: t,

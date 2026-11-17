@@ -37,7 +37,7 @@ export default function Entry() {
         </div>
 
         <Link href="/login/admin/" className="mt-6 self-center px-6 py-3 text-base font-bold text-black/40">
-          オーナー
+          サポートセンター
         </Link>
       </main>
     </>

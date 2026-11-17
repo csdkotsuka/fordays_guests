@@ -45,4 +45,4 @@ export const setMode = (mode: Mode) => {
 export const signOut = () => write(null);
 
 export const HOME: Record<Mode, string> = { member: '/m/', leader: '/l/', admin: '/admin/' };
-export const MODE_LABEL: Record<Mode, string> = { member: 'メンバー', leader: 'リーダー', admin: 'オーナー' };
+export const MODE_LABEL: Record<Mode, string> = { member: 'メンバー', leader: 'リーダー', admin: 'サポートセンター' };

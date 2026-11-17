@@ -158,7 +158,7 @@ function SignupFlow() {
             </p>
             <p className="font-bold">4. 開示・訂正・退会について</p>
             <p>
-              ご登録情報の変更や退会（データ削除）をご希望の際は、担当リーダーまたはオーナーまでいつでもお申し出いただけます。
+              ご登録情報の変更や退会（データ削除）をご希望の際は、担当リーダーまたはサポートセンターまでいつでもお申し出いただけます。
             </p>
           </div>
 
@@ -312,13 +312,13 @@ function SignupFlow() {
           <div className="flex flex-col gap-4">
             <div className="rounded-2xl bg-white p-4 text-left shadow-sm">
               <div className="border-b border-black/10 pb-2 text-sm text-black/60">
-                <div>件名：【FD なかまノート】メールアドレスのご確認</div>
+                <div>件名：【FORDAYS パートナー手帳】メールアドレスのご確認</div>
                 <div>宛先：{createdUser.email}</div>
               </div>
               <div className="mt-3 space-y-3 text-base leading-relaxed">
                 <p>{createdUser.name} 様</p>
                 <p>
-                  FD なかまノートへのご登録ありがとうございます。
+                  FORDAYS パートナー手帳へのご登録ありがとうございます。
                   下のボタンを押してメールアドレスの認証を完了してください。
                 </p>
               </div>
