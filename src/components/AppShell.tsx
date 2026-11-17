@@ -31,7 +31,13 @@ export function AppShell({ mode, children }: { mode?: Mode; children: (ctx: { us
 
   useEffect(() => {
     if (!ready) return;
-    if (!session || (db.users.length && !user)) {
+    if (!session) {
+      router.replace('/');
+      return;
+    }
+    if (db.users.length && !user) {
+      // 古い／無効なセッションが残っていた場合はクリアしてからトップへ戻す（リダイレクトループ防止）
+      signOut();
       router.replace('/');
       return;
     }

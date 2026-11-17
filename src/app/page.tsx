@@ -4,16 +4,26 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { APP_NAME } from '@/config/app';
-import { HOME, useSession } from '@/lib/session';
+import { HOME, signOut, useSession } from '@/lib/session';
+import { findUser, useDB } from '@/lib/store';
 
 export default function Entry() {
   const session = useSession();
+  const db = useDB();
   const router = useRouter();
 
   useEffect(() => {
-    if (session) router.replace(HOME[session.mode]);
-    else document.documentElement.dataset.mode = 'member';
-  }, [session, router]);
+    if (session && db.users.length > 0) {
+      const u = findUser(db, session.userUuid);
+      if (u && u.roles.includes(session.mode)) {
+        router.replace(HOME[session.mode]);
+        return;
+      }
+      // 無効なセッションは破棄してトップ画面を表示する
+      signOut();
+    }
+    document.documentElement.dataset.mode = 'member';
+  }, [session, db, router]);
 
   return (
     <>
