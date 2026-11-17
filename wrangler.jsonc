@@ -5,5 +5,13 @@
   "assets": {
     "directory": "./out",
     "not_found_handling": "404-page"
+  },
+  "vars": {
+    "NEXT_PUBLIC_FIREBASE_API_KEY": "AIzaSyCh3aSSJ68LhI1AU0AMAwIIKppK7qENkWQ",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "fordays-guests-nhftc.firebaseapp.com",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "fordays-guests-nhftc",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "fordays-guests-nhftc.firebasestorage.app",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "323114923596",
+    "NEXT_PUBLIC_FIREBASE_APP_ID": "1:323114923596:web:a9a7dfc0fc7e44782d66e9"
   }
 }

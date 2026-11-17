@@ -1,0 +1,210 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (FORDAYS なかま管理アプリ)
+// ===============================================================
+//
+// Collection: users/{userUuid}
+//   - uuid: string (required, immutable, matches userUuid)
+//   - memberNo: string (required, "" or 7-digit string, <= 20 chars)
+//   - name: string (required, 1..100 chars)
+//   - phone: string (optional, <= 40 chars)
+//   - roles: list of ('member' | 'leader' | 'admin') (required, 1..3 items)
+//   - leaderUuid: string | null (required, <= 100 chars)
+//   - calendarId: string | null (required, <= 200 chars)
+//   - points: number (required, >= 0)
+//   - createdAt: string (required, immutable, ISO 8601 string)
+//
+// Collection: referrals/{referralUuid}
+//   - uuid: string (required, immutable, matches referralUuid)
+//   - referrerUuid: string (required, immutable, 1..100 chars)
+//   - leaderUuid: string | null (required, <= 100 chars)
+//   - name: string (required, 1..100 chars)
+//   - phone: string (required, <= 40 chars)
+//   - memo: string (required, <= 1000 chars)
+//   - status: 'introduced' | 'joined' | 'registered' (required)
+//   - createdAt: string (required, immutable, ISO 8601 string)
+//
+// Collection: events/{eventUuid}
+//   - uuid: string (required, immutable, matches eventUuid)
+//   - leaderUuid: string (required, immutable, 1..100 chars)
+//   - title: string (required, 1..200 chars)
+//   - startAt: string (required, ISO 8601 string)
+//   - place: string (required, <= 300 chars)
+//   - note: string (required, <= 2000 chars)
+//   - createdAt: string (required, immutable, ISO 8601 string)
+//
+// Collection: invitations/{invitationUuid}
+//   - uuid: string (required, immutable, matches invitationUuid)
+//   - eventUuid: string (required, immutable, 1..100 chars)
+//   - leaderUuid: string (required, immutable, 1..100 chars)
+//   - memberUuid: string (required, immutable, 1..100 chars)
+//   - status: 'pending' | 'yes' | 'no' (required)
+//   - companionUuids: list of string (required, <= 50 items)
+//   - respondedAt: string | null (required, <= 60 chars)
+//   - remindedAt: string | null (required, <= 60 chars)
+//   - createdAt: string (required, immutable, ISO 8601 string)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Prototype phase access helper:
+    // Allows access while client uses local demo/Passkey session or guest RSVP link (/e/?id=...),
+    // and remains compatible once Firebase Authentication is enabled.
+    function isPrototypeOrAuthenticated() {
+      return request.auth == null || isAuthenticated();
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isNonEmptyString(val, maxLen) {
+      return val is string && val.size() >= 1 && val.size() <= maxLen;
+    }
+
+    function isBoundedString(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    function isNullableString(val, maxLen) {
+      return val == null || (val is string && val.size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators (Called on both create and update)
+    // ===============================================================
+
+    function isValidUser(data, userUuid) {
+      let required = ['uuid', 'memberNo', 'name', 'roles', 'leaderUuid', 'calendarId', 'points', 'createdAt'];
+      let allowed = ['uuid', 'memberNo', 'name', 'phone', 'roles', 'leaderUuid', 'calendarId', 'points', 'createdAt'];
+      return hasRequiredFields(required) &&
+             hasOnlyAllowedFields(allowed) &&
+             data.uuid == userUuid &&
+             isNonEmptyString(data.uuid, 100) &&
+             isBoundedString(data.memberNo, 20) &&
+             (data.memberNo == '' || data.memberNo.matches('^\\d{7}$')) &&
+             isNonEmptyString(data.name, 100) &&
+             (!('phone' in data) || isBoundedString(data.phone, 40)) &&
+             data.roles is list &&
+             data.roles.size() >= 1 &&
+             data.roles.size() <= 3 &&
+             data.roles.hasOnly(['member', 'leader', 'admin']) &&
+             isNullableString(data.leaderUuid, 100) &&
+             isNullableString(data.calendarId, 200) &&
+             (data.points is int || data.points is float) &&
+             data.points >= 0 &&
+             data.points <= 10000000 &&
+             isNonEmptyString(data.createdAt, 60);
+    }
+
+    function isValidReferral(data, referralUuid) {
+      let fields = ['uuid', 'referrerUuid', 'leaderUuid', 'name', 'phone', 'memo', 'status', 'createdAt'];
+      return hasRequiredFields(fields) &&
+             hasOnlyAllowedFields(fields) &&
+             data.uuid == referralUuid &&
+             isNonEmptyString(data.uuid, 100) &&
+             isNonEmptyString(data.referrerUuid, 100) &&
+             isNullableString(data.leaderUuid, 100) &&
+             isNonEmptyString(data.name, 100) &&
+             isBoundedString(data.phone, 40) &&
+             isBoundedString(data.memo, 1000) &&
+             data.status in ['introduced', 'joined', 'registered'] &&
+             isNonEmptyString(data.createdAt, 60);
+    }
+
+    function isValidEvent(data, eventUuid) {
+      let fields = ['uuid', 'leaderUuid', 'title', 'startAt', 'place', 'note', 'createdAt'];
+      return hasRequiredFields(fields) &&
+             hasOnlyAllowedFields(fields) &&
+             data.uuid == eventUuid &&
+             isNonEmptyString(data.uuid, 100) &&
+             isNonEmptyString(data.leaderUuid, 100) &&
+             isNonEmptyString(data.title, 200) &&
+             isNonEmptyString(data.startAt, 60) &&
+             isBoundedString(data.place, 300) &&
+             isBoundedString(data.note, 2000) &&
+             isNonEmptyString(data.createdAt, 60);
+    }
+
+    function isValidInvitation(data, invitationUuid) {
+      let fields = ['uuid', 'eventUuid', 'leaderUuid', 'memberUuid', 'status', 'companionUuids', 'respondedAt', 'remindedAt', 'createdAt'];
+      return hasRequiredFields(fields) &&
+             hasOnlyAllowedFields(fields) &&
+             data.uuid == invitationUuid &&
+             isNonEmptyString(data.uuid, 100) &&
+             isNonEmptyString(data.eventUuid, 100) &&
+             isNonEmptyString(data.leaderUuid, 100) &&
+             isNonEmptyString(data.memberUuid, 100) &&
+             data.status in ['pending', 'yes', 'no'] &&
+             data.companionUuids is list &&
+             data.companionUuids.size() <= 50 &&
+             isNullableString(data.respondedAt, 60) &&
+             isNullableString(data.remindedAt, 60) &&
+             isNonEmptyString(data.createdAt, 60);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userUuid} {
+      allow read: if isPrototypeOrAuthenticated();
+      allow create: if isPrototypeOrAuthenticated() && isValidUser(request.resource.data, userUuid);
+      allow update: if isPrototypeOrAuthenticated() &&
+                    isValidUser(request.resource.data, userUuid) &&
+                    areImmutableFieldsUnchanged(['uuid', 'createdAt']);
+      allow delete: if isPrototypeOrAuthenticated();
+    }
+
+    match /referrals/{referralUuid} {
+      allow read: if isPrototypeOrAuthenticated();
+      allow create: if isPrototypeOrAuthenticated() && isValidReferral(request.resource.data, referralUuid);
+      allow update: if isPrototypeOrAuthenticated() &&
+                    isValidReferral(request.resource.data, referralUuid) &&
+                    areImmutableFieldsUnchanged(['uuid', 'referrerUuid', 'createdAt']);
+      allow delete: if isPrototypeOrAuthenticated();
+    }
+
+    match /events/{eventUuid} {
+      allow read: if isPrototypeOrAuthenticated();
+      allow create: if isPrototypeOrAuthenticated() && isValidEvent(request.resource.data, eventUuid);
+      allow update: if isPrototypeOrAuthenticated() &&
+                    isValidEvent(request.resource.data, eventUuid) &&
+                    areImmutableFieldsUnchanged(['uuid', 'leaderUuid', 'createdAt']);
+      allow delete: if isPrototypeOrAuthenticated();
+    }
+
+    match /invitations/{invitationUuid} {
+      allow read: if isPrototypeOrAuthenticated();
+      allow create: if isPrototypeOrAuthenticated() && isValidInvitation(request.resource.data, invitationUuid);
+      allow update: if isPrototypeOrAuthenticated() &&
+                    isValidInvitation(request.resource.data, invitationUuid) &&
+                    areImmutableFieldsUnchanged(['uuid', 'eventUuid', 'leaderUuid', 'memberUuid', 'createdAt']);
+      allow delete: if isPrototypeOrAuthenticated();
+    }
+
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
