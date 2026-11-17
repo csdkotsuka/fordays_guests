@@ -61,6 +61,7 @@ function SignupFlow() {
       const u = await registerMemberAccount({
         name: form.name,
         email: form.email,
+        password: form.password,
         memberNo: form.memberNo,
         leaderUuid: selectedLeaderId,
       });

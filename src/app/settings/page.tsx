@@ -1,12 +1,12 @@
 'use client';
-import { Bell, Camera, Phone, RotateCcw, Type } from 'lucide-react';
+import { Bell, Camera, KeyRound, Phone, RotateCcw, Type } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Avatar, PageTitle, Segmented, readImageAsDataUrl, useToast } from '@/components/ui';
 import { DEMO } from '@/config/app';
 import { enableNotifications, notifyPermission, showLocalNotification } from '@/lib/pwa';
 import { FONT_LABEL, type FontScale, setFontScale, useFontScale } from '@/lib/prefs';
-import { resetDemoData, updateUser } from '@/lib/store';
+import { changeUserPassword, resetDemoData, updateUser } from '@/lib/store';
 import type { User } from '@/lib/types';
 
 export default function Page() {
@@ -19,9 +19,27 @@ function Settings({ user }: { user: User }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [perm, setPerm] = useState<string>('default');
   const [phone, setPhone] = useState(user.phone ?? '');
+  const [curPw, setCurPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [newPw2, setNewPw2] = useState('');
 
   useEffect(() => setPerm(notifyPermission()), []);
   useEffect(() => setPhone(user.phone ?? ''), [user.phone]);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPw.length < 6) return toast('新しいパスワードは6文字以上にしてください');
+    if (newPw !== newPw2) return toast('確認用パスワードが一致しません');
+    try {
+      await changeUserPassword(user.uuid, curPw, newPw);
+      setCurPw('');
+      setNewPw('');
+      setNewPw2('');
+      toast('パスワードを変更しました');
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  };
 
   return (
     <>
@@ -94,6 +112,39 @@ function Settings({ user }: { user: User }) {
             </button>
           )}
         </section>
+
+        {/* パスワード変更（事務局・リーダー・メンバー共通） */}
+        <form className="card flex flex-col gap-3" onSubmit={handlePasswordChange}>
+          <div className="flex items-center gap-2 font-bold">
+            <KeyRound size={22} className="accent" /> パスワードの変更
+          </div>
+          {user.password && (
+            <input
+              type="password"
+              className="field !text-base"
+              placeholder="現在のパスワード"
+              value={curPw}
+              onChange={(e) => setCurPw(e.target.value)}
+            />
+          )}
+          <input
+            type="password"
+            className="field !text-base"
+            placeholder="新しいパスワード（6文字以上）"
+            value={newPw}
+            onChange={(e) => setNewPw(e.target.value)}
+          />
+          <input
+            type="password"
+            className="field !text-base"
+            placeholder="新しいパスワード（確認用）"
+            value={newPw2}
+            onChange={(e) => setNewPw2(e.target.value)}
+          />
+          <button type="submit" className="btn-primary" disabled={newPw.length < 6 || newPw !== newPw2}>
+            パスワードを変更する
+          </button>
+        </form>
 
         {user.roles.includes('leader') && (
           <section className="card flex flex-col gap-3">

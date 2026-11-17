@@ -1,7 +1,14 @@
 import type { DB } from './index';
 import type { EventItem, Invitation, MessageItem, Referral, SubscriptionItem, User } from '../types';
 
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
+
+// 全端末で同じ UUID になるよう決定的な UUID を生成する
+function fixedId(prefix: number, index: number): string {
+  const p = String(prefix).padStart(8, '0');
+  const i = String(index).padStart(12, '0');
+  return `${p}-0000-4000-8000-${i}`;
+}
 
 // オフラインでも絶対にリンク切れしない、人物イラストの丸アイコン（Data URI）を生成
 function makePortraitAvatar(index: number, isFemale: boolean): string {
@@ -141,11 +148,11 @@ const MEMBER_DEFS: { name: string; female: boolean }[] = [
 
 const gmap = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 
-export function createSeed(newId: () => string): DB {
+export function createSeed(_newId: () => string): DB {
   const t = new Date().toISOString();
 
   const admin: User = {
-    uuid: newId(),
+    uuid: fixedId(1, 1),
     memberNo: '9000001',
     name: '事務局',
     email: 'admin@fordays-partner.jp',
@@ -160,7 +167,7 @@ export function createSeed(newId: () => string): DB {
   };
 
   const leaders: User[] = LEADER_DEFS.map((ld, idx) => ({
-    uuid: newId(),
+    uuid: fixedId(2, idx + 1),
     memberNo: ld.no,
     name: ld.name,
     email: `leader${idx + 1}@fordays-partner.jp`,
@@ -168,9 +175,9 @@ export function createSeed(newId: () => string): DB {
     privacyAcceptedAt: t,
     phone: ld.phone,
     avatarUrl: makePortraitAvatar(idx + 1, ld.female),
-    subscriptions: makeDummySubscriptions(idx, newId),
+    subscriptions: makeDummySubscriptions(idx, () => fixedId(9, idx * 10 + Math.floor(Math.random() * 1000))),
     roles: ['leader'],
-    leaderUuid: idx === 0 ? null : null,
+    leaderUuid: null,
     calendarId: null,
     points: ld.pts,
     createdAt: t,
@@ -181,7 +188,7 @@ export function createSeed(newId: () => string): DB {
     const leader = idx < 6 ? leaders[0] : leaders[(idx - 6) % leaders.length];
     const no = String(2000001 + idx);
     return {
-      uuid: newId(),
+      uuid: fixedId(3, idx + 1),
       memberNo: no,
       name: md.name,
       email: `member${idx + 1}@example.jp`,
@@ -189,7 +196,7 @@ export function createSeed(newId: () => string): DB {
       privacyAcceptedAt: t,
       phone: `090-${String(1000 + idx * 37).slice(0, 4)}-${String(2000 + idx * 53).slice(0, 4)}`,
       avatarUrl: makePortraitAvatar(idx + 10, md.female),
-      subscriptions: makeDummySubscriptions(idx + 2, newId),
+      subscriptions: makeDummySubscriptions(idx + 2, () => fixedId(8, idx * 10 + Math.floor(Math.random() * 1000))),
       roles: idx === 0 ? ['member', 'leader'] : ['member'],
       leaderUuid: leader.uuid,
       calendarId: null,
@@ -319,8 +326,8 @@ export function createSeed(newId: () => string): DB {
     },
   ];
 
-  const events: EventItem[] = eventSpecs.map((s) => ({
-    uuid: newId(),
+  const events: EventItem[] = eventSpecs.map((s, idx) => ({
+    uuid: fixedId(4, idx + 1),
     leaderUuid: leaders[s.leaderIdx].uuid,
     title: s.title,
     startAt: day(s.offsetDays, s.hour, s.min),
@@ -333,7 +340,7 @@ export function createSeed(newId: () => string): DB {
   // 紹介データ（お友だち）
   const referrals: Referral[] = [
     {
-      uuid: newId(),
+      uuid: fixedId(5, 1),
       referrerUuid: members[0].uuid,
       leaderUuid: leaders[0].uuid,
       name: '高橋 美代子',
@@ -343,7 +350,7 @@ export function createSeed(newId: () => string): DB {
       createdAt: t,
     },
     {
-      uuid: newId(),
+      uuid: fixedId(5, 2),
       referrerUuid: members[0].uuid,
       leaderUuid: leaders[0].uuid,
       name: '田中 和子',
@@ -353,7 +360,7 @@ export function createSeed(newId: () => string): DB {
       createdAt: t,
     },
     {
-      uuid: newId(),
+      uuid: fixedId(5, 3),
       referrerUuid: members[1].uuid,
       leaderUuid: leaders[0].uuid,
       name: '野村 節子',
@@ -367,6 +374,7 @@ export function createSeed(newId: () => string): DB {
   // 各イベントに主催リーダー配下のメンバーを招待
   const invitations: Invitation[] = [];
   const statuses: ('yes' | 'pending' | 'no')[] = ['yes', 'pending', 'yes', 'no', 'pending', 'yes'];
+  let invSeq = 1;
   events.forEach((ev, eIdx) => {
     const lMembers = members.filter((m) => m.leaderUuid === ev.leaderUuid);
     lMembers.forEach((m, mIdx) => {
@@ -375,7 +383,7 @@ export function createSeed(newId: () => string): DB {
       const status = isPast ? (mIdx % 4 === 3 ? 'no' : 'yes') : statuses[(eIdx + mIdx) % statuses.length];
       const comps = status === 'yes' && m.uuid === members[0].uuid && eIdx % 2 === 1 ? [referrals[1].uuid] : [];
       invitations.push({
-        uuid: newId(),
+        uuid: fixedId(6, invSeq++),
         eventUuid: ev.uuid,
         leaderUuid: ev.leaderUuid,
         memberUuid: m.uuid,
@@ -388,7 +396,7 @@ export function createSeed(newId: () => string): DB {
     });
   });
 
-  // 各メンバーと担当リーダーのLINE風ダミーやりとり（各2〜3往復＝4〜6通）
+  // 各メンバーと担当リーダーのLINE風ダミーやりとり（各2往復＝4通）
   const DIALOGUES: [boolean, string][][] = [
     [
       [false, 'こんにちは😊 今月のお茶会のご案内を送らせていただきました！ご都合いかがですか？☕️'],
@@ -411,13 +419,14 @@ export function createSeed(newId: () => string): DB {
   ];
 
   const messages: MessageItem[] = [];
+  let msgSeq = 1;
   members.forEach((m, idx) => {
     if (!m.leaderUuid) return;
     const conv = DIALOGUES[idx % DIALOGUES.length];
     conv.forEach(([fromMember, text], stepIdx) => {
       const msgTime = new Date(Date.now() - (conv.length - stepIdx) * 3600 * 1000 * 6 - idx * 60000).toISOString();
       messages.push({
-        uuid: newId(),
+        uuid: fixedId(7, msgSeq++),
         leaderUuid: m.leaderUuid!,
         memberUuid: m.uuid,
         senderUuid: fromMember ? m.uuid : m.leaderUuid!,

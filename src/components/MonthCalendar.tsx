@@ -1,6 +1,6 @@
 'use client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { fmtTime } from '@/lib/date';
 import type { EventItem } from '@/lib/types';
 
@@ -9,7 +9,7 @@ const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const keyOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
 /**
- * アプリ内蔵の月間カレンダー（Googleカレンダー不要・高齢者向けに大きな文字で表示）
+ * アプリ内蔵の月間カレンダー（日付タップで下の予定カードへ自動スクロール）
  */
 export function MonthCalendar({
   events,
@@ -19,15 +19,23 @@ export function MonthCalendar({
   renderEvent: (ev: EventItem) => React.ReactNode;
 }) {
   const initial = useMemo(() => {
-    const first = events[0] ? new Date(events[0].startAt) : new Date();
-    return new Date(first.getFullYear(), first.getMonth(), 1);
-  }, [events]);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }, []);
 
   const [month, setMonth] = useState<Date>(initial);
   const [selectedDay, setSelectedDay] = useState<number | null>(() => {
-    const first = events[0] ? new Date(events[0].startAt) : null;
-    return first ? first.getDate() : new Date().getDate();
+    const now = new Date();
+    const upcoming = events.find(
+      (e) =>
+        new Date(e.startAt).getFullYear() === now.getFullYear() &&
+        new Date(e.startAt).getMonth() === now.getMonth() &&
+        new Date(e.startAt).getTime() >= now.getTime() - 86400000,
+    );
+    return upcoming ? new Date(upcoming.startAt).getDate() : now.getDate();
   });
+
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const year = month.getFullYear();
   const m = month.getMonth();
@@ -58,6 +66,13 @@ export function MonthCalendar({
       .map((e) => new Date(e.startAt))
       .find((d) => d.getFullYear() === next.getFullYear() && d.getMonth() === next.getMonth());
     setSelectedDay(firstInNext ? firstInNext.getDate() : null);
+  };
+
+  const selectDay = (d: number) => {
+    setSelectedDay(d);
+    window.setTimeout(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
   return (
@@ -104,7 +119,7 @@ export function MonthCalendar({
             return (
               <button
                 key={d}
-                onClick={() => setSelectedDay(d)}
+                onClick={() => selectDay(d)}
                 className={`relative flex h-16 flex-col items-center justify-start rounded-2xl pt-1.5 transition active:scale-95 ${
                   isSelected
                     ? 'bg-accent text-white shadow-md'
@@ -138,7 +153,7 @@ export function MonthCalendar({
       </div>
 
       {selectedDay && (
-        <div className="flex flex-col gap-3">
+        <div ref={detailRef} className="flex scroll-mt-24 flex-col gap-3">
           <div className="px-1 text-lg font-bold">
             {m + 1}月{selectedDay}日の予定（{selectedEvents.length}件）
           </div>

@@ -11,6 +11,7 @@ rules_version = '2';
 //   - email: string | null (optional, <= 254 chars)
 //   - emailVerified: bool | null (optional)
 //   - privacyAcceptedAt: string | null (optional, <= 60 chars)
+//   - password: string | null (optional, <= 200 chars)
 //   - phone: string | null (optional, <= 40 chars)
 //   - avatarUrl: string | null (optional, <= 200000 chars for Data URI / URL)
 //   - subscriptions: list of maps | null (optional, <= 50 items)
@@ -116,6 +117,7 @@ service cloud.firestore {
         'email',
         'emailVerified',
         'privacyAcceptedAt',
+        'password',
         'phone',
         'avatarUrl',
         'subscriptions',
@@ -135,6 +137,7 @@ service cloud.firestore {
              (!('email' in data) || isNullableString(data.email, 254)) &&
              (!('emailVerified' in data) || data.emailVerified == null || data.emailVerified is bool) &&
              (!('privacyAcceptedAt' in data) || isNullableString(data.privacyAcceptedAt, 60)) &&
+             (!('password' in data) || isNullableString(data.password, 200)) &&
              (!('phone' in data) || isNullableString(data.phone, 40)) &&
              (!('avatarUrl' in data) || isNullableString(data.avatarUrl, 200000)) &&
              (!('subscriptions' in data) || data.subscriptions == null || (data.subscriptions is list && data.subscriptions.size() <= 50)) &&

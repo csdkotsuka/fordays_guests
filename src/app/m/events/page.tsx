@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, Check, ExternalLink, MapPin, Plus, UserRound, X } from 'lucide-react';
+import { CalendarDays, Check, ExternalLink, History, MapPin, Plus, UserRound, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { MonthCalendar } from '@/components/MonthCalendar';
@@ -15,7 +15,7 @@ export default function Page() {
 
 function Events({ user }: { user: User }) {
   const db = useDB();
-  const [view, setView] = useState<'card' | 'cal'>('card');
+  const [view, setView] = useState<'card' | 'cal'>('cal');
   const [answering, setAnswering] = useState<Invitation | null>(null);
   const toast = useToast();
 
@@ -27,6 +27,13 @@ function Events({ user }: { user: User }) {
         .sort((a, b) => a.ev.startAt.localeCompare(b.ev.startAt)),
     [db, user.uuid],
   );
+
+  const nowMs = Date.now();
+  const upcoming = items.filter((x) => new Date(x.ev.startAt).getTime() >= nowMs - 86400000);
+  const past = items
+    .filter((x) => new Date(x.ev.startAt).getTime() < nowMs - 86400000)
+    .slice()
+    .reverse();
 
   const renderCard = (ev: EventItem, inv: Invitation) => (
     <EventCard
@@ -50,8 +57,8 @@ function Events({ user }: { user: User }) {
         value={view}
         onChange={setView}
         options={[
-          { value: 'card', label: 'カード' },
           { value: 'cal', label: 'カレンダー' },
+          { value: 'card', label: 'カード' },
         ]}
       />
 
@@ -66,7 +73,26 @@ function Events({ user }: { user: User }) {
           }}
         />
       ) : (
-        <div className="flex flex-col gap-4">{items.map(({ inv, ev }) => renderCard(ev, inv))}</div>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            {upcoming.length === 0 ? (
+              <Empty icon={CalendarDays} label="これからの予定はありません" />
+            ) : (
+              upcoming.map(({ inv, ev }) => renderCard(ev, inv))
+            )}
+          </div>
+
+          {past.length > 0 && (
+            <section className="flex flex-col gap-3">
+              <h2 className="h2 flex items-center gap-2 px-1 text-black/70">
+                <History size={22} className="accent" /> 過去の参加履歴（{past.length}件）
+              </h2>
+              <div className="flex flex-col gap-3 opacity-85">
+                {past.map(({ inv, ev }) => renderCard(ev, inv))}
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
       <CompanionSheet user={user} inv={answering} onClose={() => setAnswering(null)} />
@@ -88,10 +114,15 @@ function EventCard({
   onNo: () => void;
 }) {
   const d = new Date(ev.startAt);
+  const isPast = d.getTime() < Date.now() - 86400000;
   return (
     <article className="card flex flex-col gap-4">
       <div className="flex gap-4">
-        <div className="bg-accent flex h-[76px] w-[76px] shrink-0 flex-col items-center justify-center rounded-3xl text-white shadow-md">
+        <div
+          className={`flex h-[76px] w-[76px] shrink-0 flex-col items-center justify-center rounded-3xl text-white shadow-md ${
+            isPast ? 'bg-black/45' : 'bg-accent'
+          }`}
+        >
           <span className="text-sm font-bold">{d.getMonth() + 1}月</span>
           <span className="text-[2rem] font-bold leading-none">{d.getDate()}</span>
         </div>
@@ -122,7 +153,7 @@ function EventCard({
       </div>
       {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-3 text-base leading-relaxed">{ev.note}</p>}
 
-      {inv.status === 'pending' ? (
+      {inv.status === 'pending' && !isPast ? (
         <div className="grid grid-cols-2 gap-3">
           <button className="btn-primary" onClick={onYes}>
             <Check size={26} /> 参加
@@ -139,7 +170,7 @@ function EventCard({
             }`}
           >
             {inv.status === 'yes' ? <Check size={24} /> : <X size={24} />}
-            {inv.status === 'yes' ? '参加' : '不参加'}
+            {inv.status === 'yes' ? '参加' : inv.status === 'no' ? '不参加' : '未返答'}
           </div>
           {companions.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -150,19 +181,21 @@ function EventCard({
               ))}
             </div>
           )}
-          {inv.status === 'yes' ? (
-            <div className="grid grid-cols-2 gap-3">
+          {!isPast && (
+            inv.status === 'yes' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button className="btn-soft !min-h-[52px]" onClick={onYes}>
+                  一緒に行く人
+                </button>
+                <button className="btn-glass !min-h-[52px]" onClick={onNo}>
+                  不参加に変更
+                </button>
+              </div>
+            ) : (
               <button className="btn-soft !min-h-[52px]" onClick={onYes}>
-                一緒に行く人
+                参加に変更
               </button>
-              <button className="btn-glass !min-h-[52px]" onClick={onNo}>
-                不参加に変更
-              </button>
-            </div>
-          ) : (
-            <button className="btn-soft !min-h-[52px]" onClick={onYes}>
-              参加に変更
-            </button>
+            )
           )}
         </div>
       )}

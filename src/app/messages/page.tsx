@@ -2,14 +2,46 @@
 import { ChevronLeft, MessageCircle, Send, Smile } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { Avatar, Empty, PageTitle, Row } from '@/components/ui';
 import { fmtDate, fmtTime } from '@/lib/date';
 import { findUser, membersOf, messagesBetween, sendChatMessage, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
 
-const EMOJIS = ['😊', '🌸', '✨', '🙇‍♀️', '☕️', '🎉', '👍', '❤️', '🙏', '🍮', '🤸‍♀️', '📅'];
+// iPhone 標準に近いカテゴリ別絵文字セット
+const EMOJI_CATS: { label: string; items: string[] }[] = [
+  {
+    label: 'よく使う',
+    items: [
+      '😊', '😄', '😁', '😆', '🥹', '🥰', '😍', '🤗', '🤭', '😉', '😌', '🙏',
+      '👍', '👏', '🙌', '🤝', '💪', '✨', '🌸', '🌷', '☕️', '🍵', '🎉', '❤️',
+    ],
+  },
+  {
+    label: '表情・あいさつ',
+    items: [
+      '😀', '😃', '😂', '🤣', '😇', '🙂', '😋', '😛', '😜', '🤔', '😴', '😮',
+      '😲', '😳', '🥺', '😢', '😭', '😓', '😣', '🙇‍♀️', '🙇‍♂️', '🙋‍♀️', '🙋‍♂️', '👋',
+      '👌', '✌️', '🤞', '🤟', '🫶', '🫡', '🥳', '🤩',
+    ],
+  },
+  {
+    label: '食べ物・イベント',
+    items: [
+      '🍮', '🍰', '🧁', '🍩', '🍪', '🍓', '🍑', '🍊', '🍎', '🥗', '🍙', '🍱',
+      '🫖', '🥛', '🥂', '🍻', '🎁', '🎈', '🎊', '🎵', '🎶', '🤸‍♀️', '🧘', '🚶‍♀️',
+      '📅', '📍', '🗺️', '📞', '💌', '📝', '🏠', '🌙',
+    ],
+  },
+  {
+    label: 'ハート・季節',
+    items: [
+      '🩷', '🧡', '💛', '💚', '🩵', '💙', '💜', '🤍', '💕', '💞', '💓', '💗',
+      '💖', '☀️', '🌤️', '🌈', '🌺', '🌻', '🌼', '🍀', '🍁', '❄️', '⭐', '🌟',
+    ],
+  },
+];
 
 export default function Page() {
   return (
@@ -29,20 +61,37 @@ function MessagesScreen({ user, isLeaderMode }: { user: User; isLeaderMode: bool
   const searchParams = useSearchParams();
   const withParam = searchParams.get('with') || '';
 
-  // メンバーモードで担当リーダーがいる場合は直接そのリーダーとのトークを開く
   const partnerUuid = isLeaderMode ? withParam : withParam || user.leaderUuid || '';
   const partner = findUser(db, partnerUuid);
 
-  if (isLeaderMode && !partner) {
-    const myMembers = membersOf(db, user.uuid);
+  // トーク相手一覧（リーダーモード、または相手未指定時）
+  const candidates = useMemo(() => {
+    const list: User[] = [];
+    const seen = new Set<string>();
+    const add = (u: User | null) => {
+      if (u && u.uuid !== user.uuid && !seen.has(u.uuid)) {
+        seen.add(u.uuid);
+        list.push(u);
+      }
+    };
+    if (user.leaderUuid) add(findUser(db, user.leaderUuid));
+    for (const m of membersOf(db, user.uuid)) add(m);
+    for (const msg of db.messages ?? []) {
+      if (msg.leaderUuid === user.uuid) add(findUser(db, msg.memberUuid));
+      if (msg.memberUuid === user.uuid) add(findUser(db, msg.leaderUuid));
+    }
+    return list;
+  }, [db, user.uuid, user.leaderUuid]);
+
+  if (!partner) {
     return (
       <>
         <PageTitle>メッセージ</PageTitle>
-        {myMembers.length === 0 ? (
-          <Empty icon={MessageCircle} label="メンバーがいません" />
+        {candidates.length === 0 ? (
+          <Empty icon={MessageCircle} label="トーク相手がいません" />
         ) : (
           <div className="flex flex-col gap-3">
-            {myMembers.map((m) => {
+            {candidates.map((m) => {
               const msgs = messagesBetween(db, user.uuid, m.uuid);
               const last = msgs[msgs.length - 1];
               return (
@@ -66,12 +115,9 @@ function MessagesScreen({ user, isLeaderMode }: { user: User; isLeaderMode: bool
     );
   }
 
-  if (!partner) {
-    return <Empty icon={MessageCircle} label="トーク相手が見つかりません" />;
-  }
-
-  const leaderUuid = isLeaderMode ? user.uuid : partner.uuid;
-  const memberUuid = isLeaderMode ? partner.uuid : user.uuid;
+  // leaderUuid / memberUuid はユーザー関係に基づいて一貫させる
+  const leaderUuid = partner.leaderUuid === user.uuid ? user.uuid : user.leaderUuid === partner.uuid ? partner.uuid : isLeaderMode ? user.uuid : partner.uuid;
+  const memberUuid = leaderUuid === user.uuid ? partner.uuid : user.uuid;
 
   return (
     <ChatRoom
@@ -79,7 +125,7 @@ function MessagesScreen({ user, isLeaderMode }: { user: User; isLeaderMode: bool
       partner={partner}
       leaderUuid={leaderUuid}
       memberUuid={memberUuid}
-      showBackToList={isLeaderMode}
+      showBackToList={candidates.length > 1 || isLeaderMode}
     />
   );
 }
@@ -98,19 +144,21 @@ function ChatRoom({
   showBackToList: boolean;
 }) {
   const db = useDB();
-  const msgs = messagesBetween(db, leaderUuid, memberUuid);
+  const msgs = messagesBetween(db, me.uuid, partner.uuid);
   const [text, setText] = useState('');
-  const [showEmoji, setShowEmoji] = useState(true);
+  const [showEmoji, setShowEmoji] = useState(false); // デフォルトは閉じておく
+  const [emojiTab, setEmojiTab] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [msgs.length]);
 
   const onSend = async () => {
     if (!text.trim()) return;
     const t = text;
     setText('');
+    setShowEmoji(false);
     await sendChatMessage({
       leaderUuid,
       memberUuid,
@@ -122,7 +170,7 @@ function ChatRoom({
   return (
     <div className="flex flex-col gap-3">
       {/* トークヘッダー */}
-      <div className="glass flex items-center gap-3 rounded-full px-3 py-2">
+      <div className="glass sticky top-[86px] z-20 flex items-center gap-3 rounded-full px-3 py-2">
         {showBackToList && (
           <Link
             href="/messages/"
@@ -138,13 +186,13 @@ function ChatRoom({
         </div>
       </div>
 
-      {/* LINE風トークエリア */}
+      {/* LINE風トークエリア（ページ全体のスクロールと自然に連動） */}
       <div
-        className="glass flex h-[54dvh] flex-col gap-3 overflow-y-auto rounded-[28px] p-4"
+        className="glass flex min-h-[46dvh] flex-col gap-3 rounded-[28px] p-4"
         style={{ background: 'linear-gradient(180deg, rgba(226,238,248,0.65) 0%, rgba(255,255,255,0.75) 100%)' }}
       >
         {msgs.length === 0 ? (
-          <div className="my-auto text-center text-base font-bold text-black/40">
+          <div className="my-auto py-16 text-center text-base font-bold text-black/40">
             メッセージを送ってみましょう😊
           </div>
         ) : (
@@ -176,59 +224,76 @@ function ChatRoom({
             );
           })
         )}
-        <div ref={bottomRef} />
+        <div ref={bottomRef} className="scroll-mb-36" />
       </div>
 
-      {/* ワンタップ絵文字パレット */}
-      {showEmoji && (
-        <div className="glass flex flex-wrap justify-between gap-1.5 rounded-3xl px-3 py-2.5">
-          {EMOJIS.map((em) => (
-            <button
-              key={em}
-              type="button"
-              onClick={() => setText((prev) => prev + em)}
-              className="grid h-11 w-11 place-items-center rounded-full bg-white/80 text-2xl transition active:scale-90"
-            >
-              {em}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* 下部固定エリア（絵文字パレット＋入力バー） */}
+      <div className="sticky bottom-3 z-20 flex flex-col gap-2">
+        {showEmoji && (
+          <div className="glass-strong flex flex-col gap-2 rounded-3xl p-3">
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+              {EMOJI_CATS.map((cat, idx) => (
+                <button
+                  key={cat.label}
+                  type="button"
+                  onClick={() => setEmojiTab(idx)}
+                  className={`chip !min-h-[36px] shrink-0 !px-3 !text-xs ${
+                    emojiTab === idx ? 'bg-accent text-white' : 'bg-white/70 text-black/65'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid max-h-[190px] grid-cols-8 gap-1 overflow-y-auto">
+              {EMOJI_CATS[emojiTab].items.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => setText((prev) => prev + em)}
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-white/70 text-2xl transition active:scale-90"
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-      {/* 入力バー */}
-      <form
-        className="glass flex items-center gap-2 rounded-full p-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSend();
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setShowEmoji((v) => !v)}
-          aria-label="絵文字"
-          className={`grid h-12 w-12 shrink-0 place-items-center rounded-full transition ${
-            showEmoji ? 'bg-accent text-white' : 'bg-white/80 text-black/60'
-          }`}
+        <form
+          className="glass-strong flex items-center gap-2 rounded-full p-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSend();
+          }}
         >
-          <Smile size={26} />
-        </button>
-        <input
-          className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[1.15rem] outline-none"
-          placeholder="メッセージを入力"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button
-          type="submit"
-          disabled={!text.trim()}
-          aria-label="送信"
-          className="bg-accent grid h-13 w-13 shrink-0 place-items-center rounded-full text-white shadow-md disabled:opacity-30"
-          style={{ width: 52, height: 52 }}
-        >
-          <Send size={24} />
-        </button>
-      </form>
+          <button
+            type="button"
+            onClick={() => setShowEmoji((v) => !v)}
+            aria-label="絵文字"
+            className={`grid h-12 w-12 shrink-0 place-items-center rounded-full transition ${
+              showEmoji ? 'bg-accent text-white' : 'bg-white/80 text-black/60'
+            }`}
+          >
+            <Smile size={26} />
+          </button>
+          <input
+            className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[1.15rem] outline-none"
+            placeholder="メッセージを入力"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            aria-label="送信"
+            className="bg-accent grid shrink-0 place-items-center rounded-full text-white shadow-md disabled:opacity-30"
+            style={{ width: 52, height: 52 }}
+          >
+            <Send size={24} />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

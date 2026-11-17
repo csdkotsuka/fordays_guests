@@ -29,11 +29,14 @@ export function LoginScreen({ role }: { role: Role }) {
   const trimmed = idOrEmail.trim();
   const valid = /^\d{7}$/.test(trimmed) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 
-  const login = (input: string) => {
+  const login = (input: string, checkPassword?: string) => {
     const k = input.trim();
     const u = /^\d{7}$/.test(k) ? findUserByNo(db, k) : findUserByEmail(db, k);
     if (!u) return toast('会員番号またはメールアドレスが見つかりません');
     if (!u.roles.includes(role)) return toast(`${MODE_LABEL[role]}の登録がありません`);
+    if (checkPassword !== undefined && u.password && u.password !== checkPassword) {
+      return toast('パスワードが正しくありません');
+    }
     if (u.emailVerified === false) {
       setUnverifiedUser(u);
       return;
@@ -68,7 +71,7 @@ export function LoginScreen({ role }: { role: Role }) {
           className="card flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (valid) login(idOrEmail);
+            if (valid) login(idOrEmail, usePw ? pw : undefined);
           }}
         >
           <div>

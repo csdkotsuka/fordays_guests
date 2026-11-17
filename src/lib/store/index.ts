@@ -17,7 +17,7 @@ export interface DB {
   messages: MessageItem[];
 }
 
-const KEY = 'fd-guests-db-v3';
+const KEY = 'fd-guests-db-v4';
 const listeners = new Set<() => void>();
 let cache: DB | null = null;
 let syncStarted = false;
@@ -114,9 +114,13 @@ export const eventsOf = (db: DB, leaderUuid: string) =>
 export const invitationsOfEvent = (db: DB, eventUuid: string) => db.invitations.filter((i) => i.eventUuid === eventUuid);
 export const invitationsOfMember = (db: DB, memberUuid: string) =>
   db.invitations.filter((i) => i.memberUuid === memberUuid);
-export const messagesBetween = (db: DB, leaderUuid: string, memberUuid: string) =>
+export const messagesBetween = (db: DB, userA: string, userB: string) =>
   (db.messages ?? [])
-    .filter((m) => m.leaderUuid === leaderUuid && m.memberUuid === memberUuid)
+    .filter(
+      (m) =>
+        (m.leaderUuid === userA && m.memberUuid === userB) ||
+        (m.leaderUuid === userB && m.memberUuid === userA),
+    )
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
 // ---------- 更新系（整合性チェックはここで行う） ----------
@@ -197,6 +201,7 @@ export async function addMember(input: {
 export async function registerMemberAccount(input: {
   name: string;
   email: string;
+  password?: string;
   memberNo?: string;
   leaderUuid: string;
 }) {
@@ -217,6 +222,7 @@ export async function registerMemberAccount(input: {
     name: input.name.trim(),
     email,
     emailVerified: false, // メール内の確認リンク承認後に true になる
+    password: input.password,
     privacyAcceptedAt: t,
     subscriptions: [],
     roles: ['member'],
@@ -242,12 +248,25 @@ export async function markEmailVerified(userUuid: string) {
 
 export async function updateUser(
   uuid: string,
-  patch: Partial<Pick<User, 'name' | 'calendarId' | 'phone' | 'avatarUrl' | 'subscriptions' | 'emailVerified'>>,
+  patch: Partial<Pick<User, 'name' | 'calendarId' | 'phone' | 'avatarUrl' | 'subscriptions' | 'emailVerified' | 'password'>>,
 ) {
   const db = load();
   const cur = findUser(db, uuid);
   assert(cur, 'ユーザーが見つかりません');
   const next = { ...cur, ...patch };
+  commit({ ...db, users: db.users.map((u) => (u.uuid === uuid ? next : u)) });
+  await putDoc('users', next);
+}
+
+export async function changeUserPassword(uuid: string, currentPassword: string, newPassword: string) {
+  const db = load();
+  const cur = findUser(db, uuid);
+  assert(cur, 'ユーザーが見つかりません');
+  if (cur.password && cur.password !== currentPassword) {
+    throw new IntegrityError('現在のパスワードが正しくありません');
+  }
+  assert(newPassword.length >= 6, '新しいパスワードは6文字以上にしてください');
+  const next = { ...cur, password: newPassword };
   commit({ ...db, users: db.users.map((u) => (u.uuid === uuid ? next : u)) });
   await putDoc('users', next);
 }

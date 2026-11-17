@@ -17,6 +17,7 @@ export interface User {
   name: string;
   email?: string; // メールアドレス（新規登録・認証用）
   emailVerified?: boolean; // メール認証済みフラグ
+  password?: string; // ログイン用パスワード（変更可能）
   privacyAcceptedAt?: string; // 個人情報保護方針の承認日時
   phone?: string; // 電話番号（メンバーからリーダーへワンタップ電話用）
   avatarUrl?: string; // 顔写真（Data URL または画像 URL）

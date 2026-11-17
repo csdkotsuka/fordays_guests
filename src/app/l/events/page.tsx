@@ -28,7 +28,7 @@ function LeaderEvents({ user }: { user: User }) {
   const toast = useToast();
   const events = eventsOf(db, user.uuid);
   const myMembers = membersOf(db, user.uuid);
-  const [view, setView] = useState<'card' | 'cal'>('card');
+  const [view, setView] = useState<'card' | 'cal'>('cal');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: '', startAt: defaultStart(), place: '', mapUrl: '', note: '', inviteAll: true });
 

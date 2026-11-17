@@ -68,7 +68,9 @@ export function startFirestoreSync(getInitialSeed: () => DB, onRemoteChange: (pa
 
   getDocs(collection(fdb, 'users'))
     .then(async (snap) => {
-      if (snap.size >= 30) return;
+      // 決定的UUID（00000001- / 00000002-）のシードが未投入ならクリーン投入
+      const hasFixedAdmin = snap.docs.some((d) => d.id === '00000001-0000-4000-8000-000000000001');
+      if (hasFixedAdmin) return;
       const seed = getInitialSeed();
       await seedFirestoreBatch(fdb, seed);
     })
@@ -80,7 +82,6 @@ export function startFirestoreSync(getInitialSeed: () => DB, onRemoteChange: (pa
       collection(fdb, col),
       (snap) => {
         if (snap.empty) return;
-        if (col === 'users' && snap.size < 30) return;
         const items = snap.docs.map((d) => d.data());
         onRemoteChange({ [col]: items } as Partial<DB>);
       },
