@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, MapPin, Plus } from 'lucide-react';
+import { CalendarDays, ExternalLink, MapPin, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -30,11 +30,11 @@ function LeaderEvents({ user }: { user: User }) {
   const myMembers = membersOf(db, user.uuid);
   const [view, setView] = useState<'card' | 'cal'>('card');
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', startAt: defaultStart(), place: '', note: '', inviteAll: true });
+  const [form, setForm] = useState({ title: '', startAt: defaultStart(), place: '', mapUrl: '', note: '', inviteAll: true });
 
   const close = () => {
     setOpen(false);
-    setForm({ title: '', startAt: defaultStart(), place: '', note: '', inviteAll: true });
+    setForm({ title: '', startAt: defaultStart(), place: '', mapUrl: '', note: '', inviteAll: true });
   };
 
   const renderEvent = (ev: EventItem) => {
@@ -45,12 +45,8 @@ function LeaderEvents({ user }: { user: User }) {
     const pending = invs.filter((i) => i.status === 'pending').length;
     const no = invs.filter((i) => i.status === 'no').length;
     return (
-      <Link
-        key={ev.uuid}
-        href={`/l/events/detail/?id=${ev.uuid}`}
-        className="card flex flex-col gap-3 transition active:scale-[0.98]"
-      >
-        <div className="flex gap-4">
+      <div key={ev.uuid} className="card flex flex-col gap-3">
+        <Link href={`/l/events/detail/?id=${ev.uuid}`} className="flex gap-4 transition active:scale-[0.99]">
           <div className="bg-accent flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-3xl text-white shadow-md">
             <span className="text-sm font-bold">{d.getMonth() + 1}月</span>
             <span className="text-[1.9rem] font-bold leading-none">{d.getDate()}</span>
@@ -60,23 +56,40 @@ function LeaderEvents({ user }: { user: User }) {
             <div className="text-base text-black/60">
               {fmtDate(d)} {fmtTime(d)}
             </div>
-            {ev.place && (
-              <div className="flex items-center gap-1 text-base text-black/60">
-                <MapPin size={18} /> <span className="truncate">{ev.place}</span>
-              </div>
+          </div>
+        </Link>
+
+        {ev.place && (
+          <div className="flex items-center justify-between gap-2 text-base text-black/70">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <MapPin size={18} className="accent shrink-0" />
+              <span className="truncate">{ev.place}</span>
+            </span>
+            {ev.mapUrl && (
+              <a
+                href={ev.mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="chip bg-accent-soft accent !min-h-[36px] shrink-0 !px-3 !text-sm"
+              >
+                <ExternalLink size={15} /> 地図
+              </a>
             )}
           </div>
-        </div>
-        {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-2.5 text-base leading-relaxed">{ev.note}</p>}
-        <div className="grid grid-cols-3 gap-2 text-center text-base font-bold">
-          <div className="bg-accent-soft accent rounded-2xl py-2">
-            参加 {yes.length}
-            {comps > 0 ? `+${comps}` : ''}
+        )}
+
+        <Link href={`/l/events/detail/?id=${ev.uuid}`} className="flex flex-col gap-3">
+          {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-2.5 text-base leading-relaxed">{ev.note}</p>}
+          <div className="grid grid-cols-3 gap-2 text-center text-base font-bold">
+            <div className="bg-accent-soft accent rounded-2xl py-2">
+              参加 {yes.length}
+              {comps > 0 ? `+${comps}` : ''}
+            </div>
+            <div className="rounded-2xl bg-amber-100/80 py-2 text-amber-900">未返答 {pending}</div>
+            <div className="rounded-2xl bg-black/5 py-2 text-black/50">不参加 {no}</div>
           </div>
-          <div className="rounded-2xl bg-amber-100/80 py-2 text-amber-900">未返答 {pending}</div>
-          <div className="rounded-2xl bg-black/5 py-2 text-black/50">不参加 {no}</div>
-        </div>
-      </Link>
+        </Link>
+      </div>
     );
   };
 
@@ -116,6 +129,7 @@ function LeaderEvents({ user }: { user: User }) {
               title: form.title.trim(),
               startAt: new Date(form.startAt).toISOString(),
               place: form.place.trim(),
+              mapUrl: form.mapUrl.trim() || undefined,
               note: form.note.trim(),
             });
             if (form.inviteAll && myMembers.length > 0) {
@@ -144,8 +158,23 @@ function LeaderEvents({ user }: { user: User }) {
             />
           </div>
           <div>
-            <label className="label">場所</label>
-            <input className="field" value={form.place} onChange={(e) => setForm({ ...form, place: e.target.value })} />
+            <label className="label">場所（会場名）</label>
+            <input
+              className="field"
+              placeholder="松山市 コミュニティセンター"
+              value={form.place}
+              onChange={(e) => setForm({ ...form, place: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Google マップ URL</label>
+            <input
+              type="url"
+              className="field !text-base"
+              placeholder="https://maps.google.com/..."
+              value={form.mapUrl}
+              onChange={(e) => setForm({ ...form, mapUrl: e.target.value })}
+            />
           </div>
           <div>
             <label className="label">メモ</label>

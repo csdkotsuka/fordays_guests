@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, Check, Home, MapPin, MessageCircle, Phone, X } from 'lucide-react';
+import { CalendarDays, Check, ExternalLink, Home, MapPin, MessageCircle, Phone, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
@@ -107,9 +107,21 @@ function EventPublicInvite() {
         </div>
 
         {ev.place && (
-          <div className="flex items-center gap-2 text-lg font-bold text-black/70">
-            <MapPin size={22} className="accent shrink-0" />
-            <span>{ev.place}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-lg font-bold text-black/70">
+            <span className="flex items-center gap-2">
+              <MapPin size={22} className="accent shrink-0" />
+              <span>{ev.place}</span>
+            </span>
+            {ev.mapUrl && (
+              <a
+                href={ev.mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="chip bg-accent-soft accent !min-h-[40px] !px-3.5 !text-sm"
+              >
+                <ExternalLink size={16} /> 地図を見る
+              </a>
+            )}
           </div>
         )}
 

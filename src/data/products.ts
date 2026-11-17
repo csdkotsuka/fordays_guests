@@ -157,7 +157,7 @@ export const PRODUCTS: Product[] = [
     "group": "サプリメント",
     "price": "¥8,500",
     "summary": "難消化性デキストリン(食物繊維)がおなかの調子を整える。",
-    "image": "https://d2w53g1q050m78.cloudfront.net/fordaysshopjp/ec_assets/9afb46d61f2352805681d4fcdec75892971af411-original.?1693187467",
+    "image": "https://d2w53g1q050m78.cloudfront.net/fordaysshopjp/ec_assets/945cdd0e890036f960e3828945751eada4f281cc-original.png?1794192779",
     "shopUrl": "https://fordays-shop.jp/shop/products/004400",
     "officialUrl": "https://fordays.jp/products/mix-bio.html"
   },

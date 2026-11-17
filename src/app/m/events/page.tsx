@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, Check, MapPin, Plus, UserRound, X } from 'lucide-react';
+import { CalendarDays, Check, ExternalLink, MapPin, Plus, UserRound, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { MonthCalendar } from '@/components/MonthCalendar';
@@ -101,8 +101,21 @@ function EventCard({
             {fmtDate(d)} {fmtTime(d)}
           </div>
           {ev.place && (
-            <div className="flex items-center gap-1 text-base text-black/60">
-              <MapPin size={18} /> <span className="truncate">{ev.place}</span>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-base text-black/65">
+              <span className="flex items-center gap-1">
+                <MapPin size={18} className="accent shrink-0" />
+                <span>{ev.place}</span>
+              </span>
+              {ev.mapUrl && (
+                <a
+                  href={ev.mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="chip bg-accent-soft accent !min-h-[34px] !px-3 !text-xs"
+                >
+                  <ExternalLink size={14} /> 地図を見る
+                </a>
+              )}
             </div>
           )}
         </div>

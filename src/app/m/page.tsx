@@ -3,7 +3,7 @@ import { CalendarDays, Gift, MessageCircle, PauseCircle, Phone, RefreshCcw, Shop
 import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { DeadlineCard } from '@/components/DeadlineCard';
-import { Tile } from '@/components/ui';
+import { Avatar, Tile } from '@/components/ui';
 import { lineOpenAppUrl } from '@/lib/lineText';
 import { findUser, invitationsOfMember, useDB } from '@/lib/store';
 import type { User } from '@/lib/types';
@@ -19,7 +19,10 @@ function Home({ user }: { user: User }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1 mt-1">{user.name} さん</h1>
+      <div className="mt-1 flex items-center gap-3">
+        <Avatar name={user.name} src={user.avatarUrl} />
+        <h1 className="h1">{user.name} さん</h1>
+      </div>
 
       {pending > 0 && (
         <Link href="/m/events/" className="btn-primary !min-h-[76px] !justify-between !px-6">
@@ -36,6 +39,7 @@ function Home({ user }: { user: User }) {
 
       <div className="grid grid-cols-2 gap-3">
         <Tile href="/m/events/" icon={CalendarDays} label="イベント" badge={pending || undefined} />
+        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" />
         <Tile href="/m/refer/" icon={UserPlus} label="お友だち紹介" />
         <Tile href="/m/rewards/" icon={Gift} label="わたしの成績" />
         <Tile href="/m/products/" icon={ShoppingBag} label="製品" />
@@ -45,18 +49,24 @@ function Home({ user }: { user: User }) {
 
       {leader && (
         <section className="card flex flex-col gap-3">
-          <div className="text-base font-bold text-black/60">{leader.name} さんに連絡</div>
+          <div className="flex items-center gap-3">
+            <Avatar name={leader.name} src={leader.avatarUrl} size="sm" />
+            <span className="text-base font-bold text-black/70">担当：{leader.name} リーダー</span>
+          </div>
+          <Link href="/messages/" className="btn-primary !min-h-[60px]">
+            <MessageCircle size={24} /> アプリ内でメッセージ
+          </Link>
           <div className={leader.phone ? 'grid grid-cols-2 gap-3' : 'flex flex-col'}>
             <a
               href={lineOpenAppUrl}
-              className="btn !min-h-[60px] !px-4 text-white"
+              className="btn !min-h-[56px] !px-4 text-white"
               style={{ background: '#06C755' }}
             >
-              <MessageCircle size={24} /> LINEを開く
+              <MessageCircle size={22} /> LINEを開く
             </a>
             {leader.phone && (
-              <a href={`tel:${leader.phone}`} className="btn-glass !min-h-[60px] !px-4">
-                <Phone size={24} className="accent" /> 電話する
+              <a href={`tel:${leader.phone}`} className="btn-glass !min-h-[56px] !px-4">
+                <Phone size={22} className="accent" /> 電話する
               </a>
             )}
           </div>

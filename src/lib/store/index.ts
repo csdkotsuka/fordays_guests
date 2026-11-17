@@ -4,7 +4,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { isFirebaseConfigured } from '@/config/firebase';
-import type { EventItem, Invitation, Referral, RsvpStatus, User } from '../types';
+import type { EventItem, Invitation, MessageItem, Referral, RsvpStatus, SubscriptionItem, User } from '../types';
 import { putDoc, removeDoc, startFirestoreSync } from './firestoreSync';
 import { SEED_VERSION, createSeed } from './seed';
 
@@ -14,9 +14,10 @@ export interface DB {
   referrals: Referral[];
   events: EventItem[];
   invitations: Invitation[];
+  messages: MessageItem[];
 }
 
-const KEY = 'fd-guests-db-v2';
+const KEY = 'fd-guests-db-v3';
 const listeners = new Set<() => void>();
 let cache: DB | null = null;
 let syncStarted = false;
@@ -30,7 +31,7 @@ export const newId = () =>
         return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
       });
 
-const EMPTY: DB = { version: SEED_VERSION, users: [], referrals: [], events: [], invitations: [] };
+const EMPTY: DB = { version: SEED_VERSION, users: [], referrals: [], events: [], invitations: [], messages: [] };
 
 function ensureFirestoreSync() {
   if (syncStarted || typeof window === 'undefined' || !isFirebaseConfigured) return;
@@ -50,7 +51,10 @@ function load(): DB {
   try {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as DB) : null;
-    cache = parsed && parsed.version === SEED_VERSION ? parsed : createSeed(newId);
+    cache =
+      parsed && parsed.version === SEED_VERSION && Array.isArray(parsed.messages)
+        ? parsed
+        : createSeed(newId);
     if (!parsed || parsed.version !== SEED_VERSION) {
       localStorage.setItem(KEY, JSON.stringify(cache));
     }
@@ -100,6 +104,8 @@ export function resetDemoData() {
 export const findUser = (db: DB, uuid: string | null | undefined) => db.users.find((u) => u.uuid === uuid) ?? null;
 export const findUserByNo = (db: DB, memberNo: string) =>
   memberNo ? (db.users.find((u) => u.memberNo === memberNo) ?? null) : null;
+export const findUserByEmail = (db: DB, email: string) =>
+  email ? (db.users.find((u) => u.email?.toLowerCase() === email.trim().toLowerCase()) ?? null) : null;
 export const membersOf = (db: DB, leaderUuid: string) =>
   db.users.filter((u) => u.leaderUuid === leaderUuid && u.roles.includes('member'));
 export const referralsOf = (db: DB, memberUuid: string) => db.referrals.filter((r) => r.referrerUuid === memberUuid);
@@ -108,6 +114,10 @@ export const eventsOf = (db: DB, leaderUuid: string) =>
 export const invitationsOfEvent = (db: DB, eventUuid: string) => db.invitations.filter((i) => i.eventUuid === eventUuid);
 export const invitationsOfMember = (db: DB, memberUuid: string) =>
   db.invitations.filter((i) => i.memberUuid === memberUuid);
+export const messagesBetween = (db: DB, leaderUuid: string, memberUuid: string) =>
+  (db.messages ?? [])
+    .filter((m) => m.leaderUuid === leaderUuid && m.memberUuid === memberUuid)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
 // ---------- 更新系（整合性チェックはここで行う） ----------
 class IntegrityError extends Error {}
@@ -118,7 +128,7 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 /**
  * 新規の人を紹介する。
- * ネットワークビジネスの構造に合わせ、1人でも紹介したら紹介者本人に自動で 'leader' ロールが付与され、
+ * 1人でも紹介したら紹介者本人に自動で 'leader' ロールが付与され、
  * ハンバーガーメニューから「リーダーの画面」へ切り替えられるようになる。
  */
 export async function addReferral(input: { referrerUuid: string; name: string; phone?: string; memo?: string }) {
@@ -145,10 +155,16 @@ export async function addReferral(input: { referrerUuid: string; name: string; p
 }
 
 /**
- * メンバーを追加する。
- * 高齢の方や「イベント案内を見るだけ」の方は会員番号（7桁）が無くても名前だけで登録できる。
+ * メンバーを追加する（会員番号は空欄でも登録可）。
  */
-export async function addMember(input: { leaderUuid: string; name: string; memberNo?: string }) {
+export async function addMember(input: {
+  leaderUuid: string;
+  name: string;
+  memberNo?: string;
+  email?: string;
+  avatarUrl?: string;
+  subscriptions?: SubscriptionItem[];
+}) {
   const db = load();
   const leader = findUser(db, input.leaderUuid);
   assert(leader && leader.roles.includes('leader'), 'リーダーが見つかりません');
@@ -159,6 +175,11 @@ export async function addMember(input: { leaderUuid: string; name: string; membe
     uuid: newId(),
     memberNo: no,
     name: input.name.trim(),
+    email: input.email?.trim() || undefined,
+    emailVerified: true,
+    privacyAcceptedAt: now(),
+    avatarUrl: input.avatarUrl,
+    subscriptions: input.subscriptions ?? [],
     roles: ['member'],
     leaderUuid: leader.uuid,
     calendarId: null,
@@ -170,7 +191,59 @@ export async function addMember(input: { leaderUuid: string; name: string; membe
   return u;
 }
 
-export async function updateUser(uuid: string, patch: Partial<Pick<User, 'name' | 'calendarId' | 'phone'>>) {
+/**
+ * 新規アカウント登録（個人情報保護同意＋メール認証フロー）
+ */
+export async function registerMemberAccount(input: {
+  name: string;
+  email: string;
+  memberNo?: string;
+  leaderUuid: string;
+}) {
+  const db = load();
+  const email = input.email.trim().toLowerCase();
+  assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), '正しいメールアドレスを入力してください');
+  assert(!findUserByEmail(db, email), 'このメールアドレスは既に登録されています');
+  const no = (input.memberNo ?? '').trim();
+  assert(no === '' || /^\d{7}$/.test(no), '会員番号は7桁の数字か空欄にしてください');
+  if (no) assert(!findUserByNo(db, no), 'この会員番号は既に登録されています');
+  const leader = findUser(db, input.leaderUuid);
+  assert(leader && leader.roles.includes('leader'), '担当リーダーを選択してください');
+
+  const t = now();
+  const u: User = {
+    uuid: newId(),
+    memberNo: no,
+    name: input.name.trim(),
+    email,
+    emailVerified: false, // メール内の確認リンク承認後に true になる
+    privacyAcceptedAt: t,
+    subscriptions: [],
+    roles: ['member'],
+    leaderUuid: leader.uuid,
+    calendarId: null,
+    points: 0,
+    createdAt: t,
+  };
+  commit({ ...db, users: [...db.users, u] });
+  await putDoc('users', u);
+  return u;
+}
+
+export async function markEmailVerified(userUuid: string) {
+  const db = load();
+  const cur = findUser(db, userUuid);
+  assert(cur, 'ユーザーが見つかりません');
+  const next: User = { ...cur, emailVerified: true };
+  commit({ ...db, users: db.users.map((u) => (u.uuid === userUuid ? next : u)) });
+  await putDoc('users', next);
+  return next;
+}
+
+export async function updateUser(
+  uuid: string,
+  patch: Partial<Pick<User, 'name' | 'calendarId' | 'phone' | 'avatarUrl' | 'subscriptions' | 'emailVerified'>>,
+) {
   const db = load();
   const cur = findUser(db, uuid);
   assert(cur, 'ユーザーが見つかりません');
@@ -269,8 +342,7 @@ export async function respondInvitation(
 }
 
 /**
- * LINE の案内リンクから開いた人（高齢の方・イベント案内を見るだけの方）が
- * 会員番号なしで名前を選ぶ／入力するだけで出欠返答できるようにする。
+ * LINE の案内リンクから開いた人が名前を選ぶ／入力するだけで出欠返答できるようにする。
  */
 export async function respondByGuestName(
   eventUuid: string,
@@ -343,4 +415,31 @@ export async function remindPending(leaderUuid: string, eventUuid: string) {
   commit({ ...db, invitations });
   await Promise.all(updated.map((u) => putDoc('invitations', u)));
   return updated.length;
+}
+
+/** LINE風メッセージ送信（Firebase Firestore にも保存） */
+export async function sendChatMessage(input: {
+  leaderUuid: string;
+  memberUuid: string;
+  senderUuid: string;
+  text: string;
+}) {
+  const db = load();
+  const trimmed = input.text.trim();
+  assert(trimmed, 'メッセージを入力してください');
+  assert(
+    input.senderUuid === input.leaderUuid || input.senderUuid === input.memberUuid,
+    '送信者が正しくありません',
+  );
+  const msg: MessageItem = {
+    uuid: newId(),
+    leaderUuid: input.leaderUuid,
+    memberUuid: input.memberUuid,
+    senderUuid: input.senderUuid,
+    text: trimmed,
+    createdAt: now(),
+  };
+  commit({ ...db, messages: [...(db.messages ?? []), msg] });
+  await putDoc('messages', msg);
+  return msg;
 }

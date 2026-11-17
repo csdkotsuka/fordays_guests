@@ -42,8 +42,16 @@ function Change() {
       <a href={LINKS.changeOrder} target="_blank" rel="noopener noreferrer" className="btn-primary !min-h-[76px] !text-[1.3rem]">
         <ExternalLink size={28} /> 変更ページへ
       </a>
-      <a href={`tel:${LINKS.supportTel}`} className="btn-glass mt-3">
-        <Phone size={24} /> お客さまダイヤル
+      <a href={`tel:${LINKS.supportTel}`} className="btn-glass mt-3 !min-h-[76px] !gap-3.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/mark.svg" alt="" className="h-9 w-9 shrink-0" />
+        <span className="flex flex-col items-start leading-tight">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="FORDAYS" className="h-4 w-auto" />
+          <span className="mt-0.5 flex items-center gap-1.5 text-[1.15rem] font-bold">
+            <Phone size={20} className="accent" /> お客さまダイヤル（{LINKS.supportTel}）
+          </span>
+        </span>
       </a>
 
       <Sheet open={pdf} onClose={() => setPdf(false)} title="マニュアル">

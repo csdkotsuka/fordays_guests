@@ -12,7 +12,7 @@ export function eventInviteUrl(eventUuid: string) {
   return `${getAppOrigin()}/e/?id=${eventUuid}`;
 }
 
-/** LINE 一斉案内用の文面を作る（イベント専用ページへのリンク付き） */
+/** LINE 一斉案内用の文面を作る（イベント専用ページへのリンク＆地図URL付き） */
 export function eventLineText(ev: EventItem, leaderName: string) {
   const url = eventInviteUrl(ev.uuid);
   const lines = [
@@ -20,6 +20,7 @@ export function eventLineText(ev: EventItem, leaderName: string) {
     '',
     `📅 ${fmtDate(ev.startAt)} ${fmtTime(ev.startAt)}〜`,
     ev.place ? `📍 ${ev.place}` : '',
+    ev.mapUrl ? `🗺️ 地図: ${ev.mapUrl}` : '',
     ev.note ? `\n${ev.note}` : '',
     '',
     '▼ 参加・不参加のお返事はこちら',

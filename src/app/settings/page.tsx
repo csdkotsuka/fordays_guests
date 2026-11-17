@@ -1,8 +1,8 @@
 'use client';
-import { Bell, Phone, RotateCcw, Type } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Bell, Camera, Phone, RotateCcw, Type } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { PageTitle, Segmented, useToast } from '@/components/ui';
+import { Avatar, PageTitle, Segmented, readImageAsDataUrl, useToast } from '@/components/ui';
 import { DEMO } from '@/config/app';
 import { enableNotifications, notifyPermission, showLocalNotification } from '@/lib/pwa';
 import { FONT_LABEL, type FontScale, setFontScale, useFontScale } from '@/lib/prefs';
@@ -16,6 +16,7 @@ export default function Page() {
 function Settings({ user }: { user: User }) {
   const scale = useFontScale();
   const toast = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [perm, setPerm] = useState<string>('default');
   const [phone, setPhone] = useState(user.phone ?? '');
 
@@ -27,6 +28,34 @@ function Settings({ user }: { user: User }) {
       <PageTitle>設定</PageTitle>
 
       <div className="flex flex-col gap-4">
+        <section className="card flex items-center gap-4">
+          <Avatar name={user.name} src={user.avatarUrl} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[1.25rem] font-bold">{user.name}</div>
+            <div className="text-sm text-black/50">{user.memberNo || user.email || ''}</div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const dataUrl = await readImageAsDataUrl(file);
+                await updateUser(user.uuid, { avatarUrl: dataUrl });
+                toast('顔写真を更新しました');
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="chip bg-accent-soft accent mt-2 !min-h-[40px] !px-4 !text-sm"
+            >
+              <Camera size={18} /> 顔写真を変更
+            </button>
+          </div>
+        </section>
+
         <section className="card flex flex-col gap-3">
           <div className="flex items-center gap-2 font-bold">
             <Type size={22} className="accent" /> 文字の大きさ

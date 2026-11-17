@@ -28,43 +28,64 @@ export function getDbInstance(): Firestore | null {
 export async function putDoc<T extends { uuid: string }>(colName: keyof Omit<DB, 'version'>, item: T) {
   const fdb = getDbInstance();
   if (!fdb) return;
-  await setDoc(doc(fdb, colName, item.uuid), item);
+  try {
+    await setDoc(doc(fdb, colName, item.uuid), item);
+  } catch {}
 }
 
 export async function removeDoc(colName: keyof Omit<DB, 'version'>, uuid: string) {
   const fdb = getDbInstance();
   if (!fdb) return;
-  await deleteDoc(doc(fdb, colName, uuid));
+  try {
+    await deleteDoc(doc(fdb, colName, uuid));
+  } catch {}
+}
+
+async function seedFirestoreBatch(fdb: Firestore, seed: DB) {
+  // Firestore writeBatch は最大500件まで対応
+  const ops: [string, { uuid: string }][] = [
+    ...seed.users.map((u): [string, { uuid: string }] => ['users', u]),
+    ...seed.referrals.map((r): [string, { uuid: string }] => ['referrals', r]),
+    ...seed.events.map((e): [string, { uuid: string }] => ['events', e]),
+    ...seed.invitations.map((i): [string, { uuid: string }] => ['invitations', i]),
+    ...seed.messages.map((m): [string, { uuid: string }] => ['messages', m]),
+  ];
+  for (let i = 0; i < ops.length; i += 400) {
+    const batch = writeBatch(fdb);
+    for (const [col, item] of ops.slice(i, i + 400)) {
+      batch.set(doc(fdb, col, item.uuid), item);
+    }
+    await batch.commit();
+  }
 }
 
 /**
- * Firestore のリアルタイム購読を開始し、空なら初期データを自動投入する。
+ * Firestore のリアルタイム購読を開始し、空（または旧少数シード）なら初期データを自動投入する。
  */
 export function startFirestoreSync(getInitialSeed: () => DB, onRemoteChange: (partial: Partial<DB>) => void) {
   const fdb = getDbInstance();
   if (!fdb) return () => {};
 
-  // 初回：users コレクションが空ならシードデータを一括投入
   getDocs(collection(fdb, 'users'))
     .then(async (snap) => {
-      if (!snap.empty) return;
+      if (snap.size >= 30) return;
       const seed = getInitialSeed();
-      const batch = writeBatch(fdb);
-      for (const u of seed.users) batch.set(doc(fdb, 'users', u.uuid), u);
-      for (const r of seed.referrals) batch.set(doc(fdb, 'referrals', r.uuid), r);
-      for (const e of seed.events) batch.set(doc(fdb, 'events', e.uuid), e);
-      for (const i of seed.invitations) batch.set(doc(fdb, 'invitations', i.uuid), i);
-      await batch.commit();
+      await seedFirestoreBatch(fdb, seed);
     })
     .catch(() => {});
 
-  const cols: (keyof Omit<DB, 'version'>)[] = ['users', 'referrals', 'events', 'invitations'];
+  const cols: (keyof Omit<DB, 'version'>)[] = ['users', 'referrals', 'events', 'invitations', 'messages'];
   const unsubs = cols.map((col) =>
-    onSnapshot(collection(fdb, col), (snap) => {
-      if (snap.empty && col === 'users') return;
-      const items = snap.docs.map((d) => d.data());
-      onRemoteChange({ [col]: items } as Partial<DB>);
-    }),
+    onSnapshot(
+      collection(fdb, col),
+      (snap) => {
+        if (snap.empty) return;
+        if (col === 'users' && snap.size < 30) return;
+        const items = snap.docs.map((d) => d.data());
+        onRemoteChange({ [col]: items } as Partial<DB>);
+      },
+      () => {},
+    ),
   );
 
   return () => unsubs.forEach((u) => u());

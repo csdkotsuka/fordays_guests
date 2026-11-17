@@ -6,7 +6,7 @@ import {
   CalendarDays,
   Gift,
   Home,
-  Megaphone,
+  MessageCircle,
   PauseCircle,
   RefreshCcw,
   Settings,
@@ -26,6 +26,7 @@ export const MENU: Record<Mode, MenuItem[]> = {
   member: [
     { href: '/m/', label: 'ホーム', icon: Home },
     { href: '/m/events/', label: 'イベント', icon: CalendarDays },
+    { href: '/messages/', label: 'メッセージ', icon: MessageCircle },
     { href: '/m/refer/', label: 'お友だち紹介', icon: UserPlus },
     { href: '/m/rewards/', label: 'わたしの成績', icon: Gift },
     { href: '/m/products/', label: '製品', icon: ShoppingBag },
@@ -37,7 +38,7 @@ export const MENU: Record<Mode, MenuItem[]> = {
     { href: '/l/', label: 'ホーム', icon: Home },
     { href: '/l/events/', label: 'イベント', icon: CalendarDays },
     { href: '/l/members/', label: 'メンバー', icon: Users },
-    { href: '/l/announce/', label: 'LINE案内文', icon: Megaphone },
+    { href: '/messages/', label: 'メッセージ', icon: MessageCircle },
     { href: '/settings/', label: '設定', icon: Settings },
   ],
   admin: [

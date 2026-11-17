@@ -1,5 +1,5 @@
 'use client';
-import { CalendarDays, Megaphone, Settings, Users } from 'lucide-react';
+import { CalendarDays, MessageCircle, Settings, Users } from 'lucide-react';
 import { AppShell } from '@/components/AppShell';
 import { Row, Tile } from '@/components/ui';
 import { fmtDate, fmtTime } from '@/lib/date';
@@ -14,22 +14,23 @@ function LeaderHome({ user }: { user: User }) {
   const db = useDB();
   const members = membersOf(db, user.uuid);
   const events = eventsOf(db, user.uuid);
+  const upcoming = events.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 86400000);
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="h1 mt-1">{user.name} リーダー</h1>
 
       <div className="grid grid-cols-2 gap-3">
-        <Tile href="/l/events/" icon={CalendarDays} label="イベント" badge={events.length || undefined} />
+        <Tile href="/l/events/" icon={CalendarDays} label="イベント" badge={upcoming.length || undefined} />
         <Tile href="/l/members/" icon={Users} label="メンバー" badge={members.length || undefined} />
-        <Tile href="/l/announce/" icon={Megaphone} label="LINE案内文" />
+        <Tile href="/messages/" icon={MessageCircle} label="メッセージ" />
         <Tile href="/settings/" icon={Settings} label="設定" />
       </div>
 
-      {events.length > 0 && (
+      {upcoming.length > 0 && (
         <section className="mt-2 flex flex-col gap-3">
           <h2 className="h2 px-1">直近のイベント</h2>
-          {events.slice(0, 3).map((ev) => {
+          {upcoming.slice(0, 4).map((ev) => {
             const invs = invitationsOfEvent(db, ev.uuid);
             const yes = invs.filter((i) => i.status === 'yes').length;
             const pending = invs.filter((i) => i.status === 'pending').length;

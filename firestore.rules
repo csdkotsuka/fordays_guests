@@ -8,7 +8,12 @@ rules_version = '2';
 //   - uuid: string (required, immutable, matches userUuid)
 //   - memberNo: string (required, "" or 7-digit string, <= 20 chars)
 //   - name: string (required, 1..100 chars)
-//   - phone: string (optional, <= 40 chars)
+//   - email: string | null (optional, <= 254 chars)
+//   - emailVerified: bool | null (optional)
+//   - privacyAcceptedAt: string | null (optional, <= 60 chars)
+//   - phone: string | null (optional, <= 40 chars)
+//   - avatarUrl: string | null (optional, <= 200000 chars for Data URI / URL)
+//   - subscriptions: list of maps | null (optional, <= 50 items)
 //   - roles: list of ('member' | 'leader' | 'admin') (required, 1..3 items)
 //   - leaderUuid: string | null (required, <= 100 chars)
 //   - calendarId: string | null (required, <= 200 chars)
@@ -31,6 +36,7 @@ rules_version = '2';
 //   - title: string (required, 1..200 chars)
 //   - startAt: string (required, ISO 8601 string)
 //   - place: string (required, <= 300 chars)
+//   - mapUrl: string | null (optional, <= 2000 chars)
 //   - note: string (required, <= 2000 chars)
 //   - createdAt: string (required, immutable, ISO 8601 string)
 //
@@ -43,6 +49,14 @@ rules_version = '2';
 //   - companionUuids: list of string (required, <= 50 items)
 //   - respondedAt: string | null (required, <= 60 chars)
 //   - remindedAt: string | null (required, <= 60 chars)
+//   - createdAt: string (required, immutable, ISO 8601 string)
+//
+// Collection: messages/{messageUuid}
+//   - uuid: string (required, immutable, matches messageUuid)
+//   - leaderUuid: string (required, immutable, 1..100 chars)
+//   - memberUuid: string (required, immutable, 1..100 chars)
+//   - senderUuid: string (required, immutable, matches leaderUuid or memberUuid)
+//   - text: string (required, 1..2000 chars)
 //   - createdAt: string (required, immutable, ISO 8601 string)
 //
 // ===============================================================
@@ -95,7 +109,22 @@ service cloud.firestore {
 
     function isValidUser(data, userUuid) {
       let required = ['uuid', 'memberNo', 'name', 'roles', 'leaderUuid', 'calendarId', 'points', 'createdAt'];
-      let allowed = ['uuid', 'memberNo', 'name', 'phone', 'roles', 'leaderUuid', 'calendarId', 'points', 'createdAt'];
+      let allowed = [
+        'uuid',
+        'memberNo',
+        'name',
+        'email',
+        'emailVerified',
+        'privacyAcceptedAt',
+        'phone',
+        'avatarUrl',
+        'subscriptions',
+        'roles',
+        'leaderUuid',
+        'calendarId',
+        'points',
+        'createdAt'
+      ];
       return hasRequiredFields(required) &&
              hasOnlyAllowedFields(allowed) &&
              data.uuid == userUuid &&
@@ -103,7 +132,12 @@ service cloud.firestore {
              isBoundedString(data.memberNo, 20) &&
              (data.memberNo == '' || data.memberNo.matches('^\\d{7}$')) &&
              isNonEmptyString(data.name, 100) &&
-             (!('phone' in data) || isBoundedString(data.phone, 40)) &&
+             (!('email' in data) || isNullableString(data.email, 254)) &&
+             (!('emailVerified' in data) || data.emailVerified == null || data.emailVerified is bool) &&
+             (!('privacyAcceptedAt' in data) || isNullableString(data.privacyAcceptedAt, 60)) &&
+             (!('phone' in data) || isNullableString(data.phone, 40)) &&
+             (!('avatarUrl' in data) || isNullableString(data.avatarUrl, 200000)) &&
+             (!('subscriptions' in data) || data.subscriptions == null || (data.subscriptions is list && data.subscriptions.size() <= 50)) &&
              data.roles is list &&
              data.roles.size() >= 1 &&
              data.roles.size() <= 3 &&
@@ -132,15 +166,17 @@ service cloud.firestore {
     }
 
     function isValidEvent(data, eventUuid) {
-      let fields = ['uuid', 'leaderUuid', 'title', 'startAt', 'place', 'note', 'createdAt'];
-      return hasRequiredFields(fields) &&
-             hasOnlyAllowedFields(fields) &&
+      let required = ['uuid', 'leaderUuid', 'title', 'startAt', 'place', 'note', 'createdAt'];
+      let allowed = ['uuid', 'leaderUuid', 'title', 'startAt', 'place', 'mapUrl', 'note', 'createdAt'];
+      return hasRequiredFields(required) &&
+             hasOnlyAllowedFields(allowed) &&
              data.uuid == eventUuid &&
              isNonEmptyString(data.uuid, 100) &&
              isNonEmptyString(data.leaderUuid, 100) &&
              isNonEmptyString(data.title, 200) &&
              isNonEmptyString(data.startAt, 60) &&
              isBoundedString(data.place, 300) &&
+             (!('mapUrl' in data) || isNullableString(data.mapUrl, 2000)) &&
              isBoundedString(data.note, 2000) &&
              isNonEmptyString(data.createdAt, 60);
     }
@@ -159,6 +195,20 @@ service cloud.firestore {
              data.companionUuids.size() <= 50 &&
              isNullableString(data.respondedAt, 60) &&
              isNullableString(data.remindedAt, 60) &&
+             isNonEmptyString(data.createdAt, 60);
+    }
+
+    function isValidMessage(data, messageUuid) {
+      let fields = ['uuid', 'leaderUuid', 'memberUuid', 'senderUuid', 'text', 'createdAt'];
+      return hasRequiredFields(fields) &&
+             hasOnlyAllowedFields(fields) &&
+             data.uuid == messageUuid &&
+             isNonEmptyString(data.uuid, 100) &&
+             isNonEmptyString(data.leaderUuid, 100) &&
+             isNonEmptyString(data.memberUuid, 100) &&
+             isNonEmptyString(data.senderUuid, 100) &&
+             (data.senderUuid == data.leaderUuid || data.senderUuid == data.memberUuid) &&
+             isNonEmptyString(data.text, 2000) &&
              isNonEmptyString(data.createdAt, 60);
     }
 
@@ -199,6 +249,15 @@ service cloud.firestore {
       allow update: if isPrototypeOrAuthenticated() &&
                     isValidInvitation(request.resource.data, invitationUuid) &&
                     areImmutableFieldsUnchanged(['uuid', 'eventUuid', 'leaderUuid', 'memberUuid', 'createdAt']);
+      allow delete: if isPrototypeOrAuthenticated();
+    }
+
+    match /messages/{messageUuid} {
+      allow read: if isPrototypeOrAuthenticated();
+      allow create: if isPrototypeOrAuthenticated() && isValidMessage(request.resource.data, messageUuid);
+      allow update: if isPrototypeOrAuthenticated() &&
+                    isValidMessage(request.resource.data, messageUuid) &&
+                    areImmutableFieldsUnchanged(['uuid', 'leaderUuid', 'memberUuid', 'senderUuid', 'createdAt']);
       allow delete: if isPrototypeOrAuthenticated();
     }
 

@@ -83,12 +83,66 @@ export function Row({
   );
 }
 
-export function Avatar({ name }: { name: string }) {
+/** 顔写真対応の丸アイコン */
+export function Avatar({
+  name,
+  src,
+  size = 'md',
+}: {
+  name: string;
+  src?: string | null;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const dim = size === 'lg' ? 'h-20 w-20 text-2xl' : size === 'sm' ? 'h-10 w-10 text-base' : 'h-13 w-13 text-lg';
+  const px = size === 'lg' ? 80 : size === 'sm' ? 40 : 52;
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name}
+        width={px}
+        height={px}
+        style={{ width: px, height: px }}
+        className="shrink-0 rounded-full border-2 border-white object-cover shadow-sm"
+      />
+    );
+  }
   return (
-    <span className="bg-accent-soft accent grid h-12 w-12 shrink-0 place-items-center rounded-full text-lg font-bold">
+    <span
+      style={{ width: px, height: px }}
+      className={`bg-accent-soft accent grid shrink-0 place-items-center rounded-full border-2 border-white font-bold shadow-sm ${dim}`}
+    >
       {name.slice(0, 1)}
     </span>
   );
+}
+
+/** 画像ファイルを正方形（160×160）の Data URL に縮小変換する */
+export function readImageAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('画像の変換に失敗しました'));
+      img.onload = () => {
+        const size = 160;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(String(reader.result));
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export function PageTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {

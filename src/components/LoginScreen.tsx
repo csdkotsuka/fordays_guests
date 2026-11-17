@@ -1,41 +1,50 @@
 'use client';
-import { ChevronLeft, Fingerprint, KeyRound } from 'lucide-react';
+import { Check, ChevronLeft, Fingerprint, KeyRound, Mail, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DEMO } from '@/config/app';
 import { HOME, MODE_LABEL, signIn } from '@/lib/session';
-import { findUserByNo, useDB } from '@/lib/store';
-import type { Role } from '@/lib/types';
-import { useToast } from './ui';
+import { findUserByEmail, findUserByNo, markEmailVerified, useDB } from '@/lib/store';
+import type { Role, User } from '@/lib/types';
+import { Avatar, useToast } from './ui';
+import { Sheet } from './ui/Sheet';
 
 /**
- * ログイン画面（会員番号7桁 ＋ Passkey ／ パスワード）
- * TODO: 現在はダミー。Passkey(WebAuthn) は Cloudflare Workers で検証 → Firebase カスタムトークン発行の予定（docs/FIREBASE.md）
+ * ログイン画面（会員番号7桁 または メールアドレス ＋ Passkey ／ パスワード）
  */
 export function LoginScreen({ role }: { role: Role }) {
   const db = useDB();
   const router = useRouter();
   const toast = useToast();
-  const [no, setNo] = useState('');
+  const [idOrEmail, setIdOrEmail] = useState('');
   const [usePw, setUsePw] = useState(false);
   const [pw, setPw] = useState('');
+  const [unverifiedUser, setUnverifiedUser] = useState<User | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.mode = role;
   }, [role]);
 
-  const valid = /^\d{7}$/.test(no);
+  const trimmed = idOrEmail.trim();
+  const valid = /^\d{7}$/.test(trimmed) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 
-  const login = (memberNo: string) => {
-    const u = findUserByNo(db, memberNo);
-    if (!u) return toast('会員番号が見つかりません');
+  const login = (input: string) => {
+    const k = input.trim();
+    const u = /^\d{7}$/.test(k) ? findUserByNo(db, k) : findUserByEmail(db, k);
+    if (!u) return toast('会員番号またはメールアドレスが見つかりません');
     if (!u.roles.includes(role)) return toast(`${MODE_LABEL[role]}の登録がありません`);
+    if (u.emailVerified === false) {
+      setUnverifiedUser(u);
+      return;
+    }
     signIn(u.uuid, role);
     router.replace(HOME[role]);
   };
 
-  const demoUsers = db.users.filter((u) => u.roles.includes(role)).slice(0, 3);
+  const demoUsers = db.users
+    .filter((u) => u.roles.includes(role) && (role !== 'leader' || !u.leaderUuid))
+    .slice(0, 7);
 
   return (
     <>
@@ -48,9 +57,9 @@ export function LoginScreen({ role }: { role: Role }) {
           <ChevronLeft size={30} />
         </Link>
 
-        <div className="mb-8 mt-6 flex flex-col items-center gap-3">
+        <div className="mb-6 mt-4 flex flex-col items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mark.svg" alt="" className="h-20 w-20" />
+          <img src="/mark.svg" alt="" className="h-18 w-18" />
           <span className="bg-accent rounded-full px-5 py-1.5 text-lg font-bold text-white">{MODE_LABEL[role]}</span>
           <h1 className="h1">ログイン</h1>
         </div>
@@ -59,22 +68,20 @@ export function LoginScreen({ role }: { role: Role }) {
           className="card flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (valid) login(no);
+            if (valid) login(idOrEmail);
           }}
         >
           <div>
             <label className="label" htmlFor="no">
-              会員番号
+              会員番号（7桁）またはメールアドレス
             </label>
             <input
               id="no"
-              className="field text-center !text-[1.8rem] font-bold tracking-[0.3em]"
-              inputMode="numeric"
+              className="field text-center !text-[1.35rem] font-bold"
               autoComplete="username webauthn"
-              placeholder="0000000"
-              maxLength={7}
-              value={no}
-              onChange={(e) => setNo(e.target.value.replace(/\D/g, '').slice(0, 7))}
+              placeholder="1000001 / mail@example.jp"
+              value={idOrEmail}
+              onChange={(e) => setIdOrEmail(e.target.value)}
             />
           </div>
 
@@ -112,18 +119,50 @@ export function LoginScreen({ role }: { role: Role }) {
           )}
         </form>
 
+        {role === 'member' && (
+          <Link href="/signup/" className="btn-soft mt-4 !min-h-[60px]">
+            <UserPlus size={24} /> はじめての方（新規メンバー登録）
+          </Link>
+        )}
+
         {DEMO && demoUsers.length > 0 && (
-          <div className="mt-8">
-            <div className="mb-2 text-center text-sm font-bold text-black/40">デモ</div>
+          <div className="mt-6">
+            <div className="mb-2 text-center text-sm font-bold text-black/40">デモ（ワンタップ切替）</div>
             <div className="flex flex-wrap justify-center gap-2">
               {demoUsers.map((u) => (
-                <button key={u.uuid} onClick={() => login(u.memberNo)} className="chip glass">
+                <button key={u.uuid} onClick={() => login(u.memberNo || u.email || '')} className="chip glass !pl-2">
+                  <Avatar name={u.name} src={u.avatarUrl} size="sm" />
                   {u.name}
                 </button>
               ))}
             </div>
           </div>
         )}
+
+        <Sheet open={!!unverifiedUser} onClose={() => setUnverifiedUser(null)} title="メール認証が未完了です">
+          {unverifiedUser && (
+            <div className="flex flex-col gap-4 text-center">
+              <p className="text-base leading-relaxed">
+                <span className="font-bold">{unverifiedUser.email}</span> 宛にお送りした確認メールの承認が完了していません。
+              </p>
+              <button
+                className="btn-primary"
+                onClick={async () => {
+                  await markEmailVerified(unverifiedUser.uuid);
+                  signIn(unverifiedUser.uuid, role);
+                  toast('メール認証を完了しました');
+                  setUnverifiedUser(null);
+                  router.replace(HOME[role]);
+                }}
+              >
+                <Check size={26} /> 確認メールを承認してログイン
+              </button>
+              <button className="btn-glass" onClick={() => toast('確認メールを再送信しました')}>
+                <Mail size={22} /> 確認メールを再送する
+              </button>
+            </div>
+          )}
+        </Sheet>
       </main>
     </>
   );
