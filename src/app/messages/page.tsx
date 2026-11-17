@@ -1,13 +1,11 @@
 'use client';
-import { ChevronLeft, Copy, MessageCircle, Phone, Send, Smile } from 'lucide-react';
+import { ChevronLeft, MessageCircle, Phone, Send, Smile } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { Avatar, Empty, PageTitle, Row, useToast } from '@/components/ui';
-import { Sheet } from '@/components/ui/Sheet';
+import { Avatar, Empty, PageTitle, Row } from '@/components/ui';
 import { fmtDate, fmtTime } from '@/lib/date';
-import { copyText } from '@/lib/lineText';
 import {
   findUser,
   markMessagesRead,
@@ -160,12 +158,10 @@ function ChatRoom({
   showBackToList: boolean;
 }) {
   const db = useDB();
-  const toast = useToast();
   const msgs = messagesBetween(db, me.uuid, partner.uuid);
   const [text, setText] = useState('');
   const [showEmoji, setShowEmoji] = useState(false); // デフォルトは閉じておく
   const [emojiTab, setEmojiTab] = useState(0);
-  const [phoneOpen, setPhoneOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // トークを開いたら未読を既読にする（Firestore の readAt を更新）
@@ -208,38 +204,14 @@ function ChatRoom({
           <div className="truncate text-[1.15rem] font-bold">{partner.name}</div>
         </div>
         {partner.phone && (
-          <button
-            type="button"
-            onClick={() => setPhoneOpen(true)}
+          <a
+            href={`tel:${partner.phone}`}
             className="bg-accent flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-bold text-white shadow-sm active:scale-95"
           >
             <Phone size={18} /> 電話
-          </button>
+          </a>
         )}
       </div>
-
-      <Sheet open={phoneOpen} onClose={() => setPhoneOpen(false)} title={`${partner.name} さんに電話`}>
-        <div className="flex flex-col gap-3">
-          <div className="glass rounded-2xl py-3 text-center text-[1.4rem] font-bold tracking-wider">
-            {partner.phone}
-          </div>
-          <a href={`tel:${partner.phone}`} className="btn-primary">
-            <Phone size={24} /> 電話をかける
-          </a>
-          <button
-            type="button"
-            className="btn-glass"
-            onClick={async () => {
-              if (partner.phone && (await copyText(partner.phone))) {
-                toast('電話番号をコピーしました（楽天Link等に貼付できます）');
-                setPhoneOpen(false);
-              }
-            }}
-          >
-            <Copy size={22} className="accent" /> 番号をコピー（楽天Link用）
-          </button>
-        </div>
-      </Sheet>
 
       {/* LINE風トークエリア（ページ全体のスクロールと自然に連動） */}
       <div
