@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { GoogleCalendar } from '@/components/GoogleCalendar';
+import { MonthCalendar } from '@/components/MonthCalendar';
 import { Empty, PageTitle, Segmented, useToast } from '@/components/ui';
 import { Sheet } from '@/components/ui/Sheet';
 import { fmtDate, fmtTime, toLocalInput } from '@/lib/date';
 import { eventsOf, invitationsOfEvent, inviteMembers, membersOf, saveEvent, useDB } from '@/lib/store';
-import type { User } from '@/lib/types';
+import type { EventItem, User } from '@/lib/types';
 
 export default function Page() {
   return <AppShell mode="leader">{({ user }) => <LeaderEvents user={user} />}</AppShell>;
@@ -37,6 +37,49 @@ function LeaderEvents({ user }: { user: User }) {
     setForm({ title: '', startAt: defaultStart(), place: '', note: '', inviteAll: true });
   };
 
+  const renderEvent = (ev: EventItem) => {
+    const d = new Date(ev.startAt);
+    const invs = invitationsOfEvent(db, ev.uuid);
+    const yes = invs.filter((i) => i.status === 'yes');
+    const comps = yes.reduce((n, i) => n + i.companionUuids.length, 0);
+    const pending = invs.filter((i) => i.status === 'pending').length;
+    const no = invs.filter((i) => i.status === 'no').length;
+    return (
+      <Link
+        key={ev.uuid}
+        href={`/l/events/detail/?id=${ev.uuid}`}
+        className="card flex flex-col gap-3 transition active:scale-[0.98]"
+      >
+        <div className="flex gap-4">
+          <div className="bg-accent flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-3xl text-white shadow-md">
+            <span className="text-sm font-bold">{d.getMonth() + 1}月</span>
+            <span className="text-[1.9rem] font-bold leading-none">{d.getDate()}</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="h2 leading-snug">{ev.title}</h2>
+            <div className="text-base text-black/60">
+              {fmtDate(d)} {fmtTime(d)}
+            </div>
+            {ev.place && (
+              <div className="flex items-center gap-1 text-base text-black/60">
+                <MapPin size={18} /> <span className="truncate">{ev.place}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-2.5 text-base leading-relaxed">{ev.note}</p>}
+        <div className="grid grid-cols-3 gap-2 text-center text-base font-bold">
+          <div className="bg-accent-soft accent rounded-2xl py-2">
+            参加 {yes.length}
+            {comps > 0 ? `+${comps}` : ''}
+          </div>
+          <div className="rounded-2xl bg-amber-100/80 py-2 text-amber-900">未返答 {pending}</div>
+          <div className="rounded-2xl bg-black/5 py-2 text-black/50">不参加 {no}</div>
+        </div>
+      </Link>
+    );
+  };
+
   return (
     <>
       <PageTitle>イベント</PageTitle>
@@ -45,65 +88,21 @@ function LeaderEvents({ user }: { user: User }) {
         <Plus size={28} /> 新しいイベント
       </button>
 
-      {user.calendarId && (
-        <Segmented
-          value={view}
-          onChange={setView}
-          options={[
-            { value: 'card', label: 'カード' },
-            { value: 'cal', label: 'カレンダー' },
-          ]}
-        />
-      )}
+      <Segmented
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'card', label: 'カード' },
+          { value: 'cal', label: 'カレンダー' },
+        ]}
+      />
 
-      {view === 'cal' && user.calendarId ? (
-        <GoogleCalendar calendarId={user.calendarId} />
-      ) : events.length === 0 ? (
+      {events.length === 0 ? (
         <Empty icon={CalendarDays} label="イベントはありません" />
+      ) : view === 'cal' ? (
+        <MonthCalendar events={events} renderEvent={renderEvent} />
       ) : (
-        <div className="flex flex-col gap-3">
-          {events.map((ev) => {
-            const d = new Date(ev.startAt);
-            const invs = invitationsOfEvent(db, ev.uuid);
-            const yes = invs.filter((i) => i.status === 'yes');
-            const comps = yes.reduce((n, i) => n + i.companionUuids.length, 0);
-            const pending = invs.filter((i) => i.status === 'pending').length;
-            const no = invs.filter((i) => i.status === 'no').length;
-            return (
-              <Link
-                key={ev.uuid}
-                href={`/l/events/detail/?id=${ev.uuid}`}
-                className="card flex flex-col gap-3 transition active:scale-[0.98]"
-              >
-                <div className="flex gap-4">
-                  <div className="bg-accent flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-3xl text-white shadow-md">
-                    <span className="text-sm font-bold">{d.getMonth() + 1}月</span>
-                    <span className="text-[1.9rem] font-bold leading-none">{d.getDate()}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h2 className="h2 truncate">{ev.title}</h2>
-                    <div className="text-base text-black/60">
-                      {fmtDate(d)} {fmtTime(d)}
-                    </div>
-                    {ev.place && (
-                      <div className="flex items-center gap-1 text-base text-black/60">
-                        <MapPin size={18} /> <span className="truncate">{ev.place}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-base font-bold">
-                  <div className="bg-accent-soft accent rounded-2xl py-2">
-                    参加 {yes.length}
-                    {comps > 0 ? `+${comps}` : ''}
-                  </div>
-                  <div className="rounded-2xl bg-amber-100/80 py-2 text-amber-900">未返答 {pending}</div>
-                  <div className="rounded-2xl bg-black/5 py-2 text-black/50">不参加 {no}</div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <div className="flex flex-col gap-3">{events.map(renderEvent)}</div>
       )}
 
       <Sheet open={open} onClose={close} title="新しいイベント">
@@ -150,7 +149,12 @@ function LeaderEvents({ user }: { user: User }) {
           </div>
           <div>
             <label className="label">メモ</label>
-            <input className="field" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+            <textarea
+              className="field !text-base"
+              rows={3}
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+            />
           </div>
           {myMembers.length > 0 && (
             <label className="glass flex min-h-[60px] items-center gap-3 rounded-2xl px-4 text-[1.1rem] font-bold">

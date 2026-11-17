@@ -25,6 +25,8 @@ function Members({ user }: { user: User }) {
     setForm({ name: '', memberNo: '' });
   };
 
+  const validNo = form.memberNo === '' || /^\d{7}$/.test(form.memberNo);
+
   return (
     <>
       <PageTitle>メンバー</PageTitle>
@@ -45,7 +47,7 @@ function Members({ user }: { user: User }) {
                 onClick={() => setSel(m)}
                 left={<Avatar name={m.name} />}
                 title={m.name}
-                sub={m.memberNo}
+                sub={m.memberNo || 'イベント案内のみ'}
                 right={
                   <div className="text-right text-base font-bold">
                     <div className="accent">紹介 {refs.length}人</div>
@@ -77,17 +79,17 @@ function Members({ user }: { user: User }) {
             <input className="field" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoFocus />
           </div>
           <div>
-            <label className="label">会員番号（7桁）</label>
+            <label className="label">会員番号（7桁・空欄でもOK）</label>
             <input
               className="field text-center !text-[1.6rem] font-bold tracking-[0.25em]"
               inputMode="numeric"
               maxLength={7}
-              placeholder="0000000"
+              placeholder="なしでも登録できます"
               value={form.memberNo}
               onChange={(e) => setForm({ ...form, memberNo: e.target.value.replace(/\D/g, '').slice(0, 7) })}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={!form.name.trim() || !/^\d{7}$/.test(form.memberNo)}>
+          <button type="submit" className="btn-primary" disabled={!form.name.trim() || !validNo}>
             追加
           </button>
         </form>

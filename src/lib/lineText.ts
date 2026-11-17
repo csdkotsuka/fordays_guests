@@ -1,8 +1,20 @@
 import type { EventItem } from './types';
 import { fmtDate, fmtTime } from './date';
 
-/** LINE 一斉案内用の文面を作る */
+export function getAppOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return 'https://fordays-guests.pages.dev';
+}
+
+export function eventInviteUrl(eventUuid: string) {
+  return `${getAppOrigin()}/e/?id=${eventUuid}`;
+}
+
+/** LINE 一斉案内用の文面を作る（イベント専用ページへのリンク付き） */
 export function eventLineText(ev: EventItem, leaderName: string) {
+  const url = eventInviteUrl(ev.uuid);
   const lines = [
     `【${ev.title}】のご案内`,
     '',
@@ -10,9 +22,10 @@ export function eventLineText(ev: EventItem, leaderName: string) {
     ev.place ? `📍 ${ev.place}` : '',
     ev.note ? `\n${ev.note}` : '',
     '',
-    '参加・不参加はアプリからお返事ください。',
-    `お友だちもお誘いください😊`,
+    '▼ 参加・不参加のお返事はこちら',
+    url,
     '',
+    'お友だちとのご参加も大歓迎です😊',
     `${leaderName}`,
   ];
   return lines.filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n').trim();
@@ -36,3 +49,6 @@ export async function copyText(text: string) {
 }
 
 export const lineShareUrl = (text: string) => `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+
+/** LINE アプリを起動する URL */
+export const lineOpenAppUrl = 'https://line.me/R/nv/chat';

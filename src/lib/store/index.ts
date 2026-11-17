@@ -1,10 +1,12 @@
 'use client';
 // データ保存の窓口。画面からは必ずここを通す（AGENTS.md §6）。
-// 現在は localStorage 実装。Firebase の設定が揃ったら、この中身だけを Firestore 実装に差し替える。
+// Firebase 設定があれば Firestore とリアルタイム同期し、未設定の間は localStorage で動作する。
 
 import { useSyncExternalStore } from 'react';
+import { isFirebaseConfigured } from '@/config/firebase';
 import type { EventItem, Invitation, Referral, RsvpStatus, User } from '../types';
-import { createSeed } from './seed';
+import { putDoc, removeDoc, startFirestoreSync } from './firestoreSync';
+import { SEED_VERSION, createSeed } from './seed';
 
 export interface DB {
   version: number;
@@ -14,9 +16,10 @@ export interface DB {
   invitations: Invitation[];
 }
 
-const KEY = 'fd-guests-db-v1';
+const KEY = 'fd-guests-db-v2';
 const listeners = new Set<() => void>();
 let cache: DB | null = null;
+let syncStarted = false;
 
 const now = () => new Date().toISOString();
 export const newId = () =>
@@ -27,18 +30,34 @@ export const newId = () =>
         return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
       });
 
-const EMPTY: DB = { version: 1, users: [], referrals: [], events: [], invitations: [] };
+const EMPTY: DB = { version: SEED_VERSION, users: [], referrals: [], events: [], invitations: [] };
+
+function ensureFirestoreSync() {
+  if (syncStarted || typeof window === 'undefined' || !isFirebaseConfigured) return;
+  syncStarted = true;
+  startFirestoreSync(
+    () => load(),
+    (partial) => {
+      const cur = load();
+      commit({ ...cur, ...partial });
+    },
+  );
+}
 
 function load(): DB {
   if (cache) return cache;
   if (typeof window === 'undefined') return EMPTY;
   try {
     const raw = localStorage.getItem(KEY);
-    cache = raw ? (JSON.parse(raw) as DB) : createSeed(newId);
-    if (!raw) localStorage.setItem(KEY, JSON.stringify(cache));
+    const parsed = raw ? (JSON.parse(raw) as DB) : null;
+    cache = parsed && parsed.version === SEED_VERSION ? parsed : createSeed(newId);
+    if (!parsed || parsed.version !== SEED_VERSION) {
+      localStorage.setItem(KEY, JSON.stringify(cache));
+    }
   } catch {
     cache = createSeed(newId);
   }
+  ensureFirestoreSync();
   return cache;
 }
 
@@ -49,6 +68,7 @@ function commit(next: DB) {
 }
 
 function subscribe(l: () => void) {
+  ensureFirestoreSync();
   listeners.add(l);
   const onStorage = (e: StorageEvent) => {
     if (e.key === KEY) {
@@ -78,7 +98,8 @@ export function resetDemoData() {
 
 // ---------- 参照系 ----------
 export const findUser = (db: DB, uuid: string | null | undefined) => db.users.find((u) => u.uuid === uuid) ?? null;
-export const findUserByNo = (db: DB, memberNo: string) => db.users.find((u) => u.memberNo === memberNo) ?? null;
+export const findUserByNo = (db: DB, memberNo: string) =>
+  memberNo ? (db.users.find((u) => u.memberNo === memberNo) ?? null) : null;
 export const membersOf = (db: DB, leaderUuid: string) =>
   db.users.filter((u) => u.leaderUuid === leaderUuid && u.roles.includes('member'));
 export const referralsOf = (db: DB, memberUuid: string) => db.referrals.filter((r) => r.referrerUuid === memberUuid);
@@ -95,6 +116,11 @@ function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new IntegrityError(msg);
 }
 
+/**
+ * 新規の人を紹介する。
+ * ネットワークビジネスの構造に合わせ、1人でも紹介したら紹介者本人に自動で 'leader' ロールが付与され、
+ * ハンバーガーメニューから「リーダーの画面」へ切り替えられるようになる。
+ */
 export async function addReferral(input: { referrerUuid: string; name: string; phone?: string; memo?: string }) {
   const db = load();
   const referrer = findUser(db, input.referrerUuid);
@@ -109,19 +135,29 @@ export async function addReferral(input: { referrerUuid: string; name: string; p
     status: 'introduced',
     createdAt: now(),
   };
-  commit({ ...db, referrals: [...db.referrals, r] });
+  const updatedReferrer: User = referrer.roles.includes('leader')
+    ? referrer
+    : { ...referrer, roles: [...referrer.roles, 'leader'] };
+  const nextUsers = db.users.map((u) => (u.uuid === referrer.uuid ? updatedReferrer : u));
+  commit({ ...db, users: nextUsers, referrals: [...db.referrals, r] });
+  await Promise.all([putDoc('referrals', r), putDoc('users', updatedReferrer)]);
   return r;
 }
 
-export async function addMember(input: { leaderUuid: string; name: string; memberNo: string }) {
+/**
+ * メンバーを追加する。
+ * 高齢の方や「イベント案内を見るだけ」の方は会員番号（7桁）が無くても名前だけで登録できる。
+ */
+export async function addMember(input: { leaderUuid: string; name: string; memberNo?: string }) {
   const db = load();
   const leader = findUser(db, input.leaderUuid);
   assert(leader && leader.roles.includes('leader'), 'リーダーが見つかりません');
-  assert(/^\d{7}$/.test(input.memberNo), '会員番号は7桁');
-  assert(!findUserByNo(db, input.memberNo), 'この会員番号は登録済みです');
+  const no = (input.memberNo ?? '').trim();
+  assert(no === '' || /^\d{7}$/.test(no), '会員番号は7桁の数字か空欄にしてください');
+  if (no) assert(!findUserByNo(db, no), 'この会員番号は登録済みです');
   const u: User = {
     uuid: newId(),
-    memberNo: input.memberNo,
+    memberNo: no,
     name: input.name.trim(),
     roles: ['member'],
     leaderUuid: leader.uuid,
@@ -130,13 +166,17 @@ export async function addMember(input: { leaderUuid: string; name: string; membe
     createdAt: now(),
   };
   commit({ ...db, users: [...db.users, u] });
+  await putDoc('users', u);
   return u;
 }
 
-export async function updateUser(uuid: string, patch: Partial<Pick<User, 'name' | 'calendarId'>>) {
+export async function updateUser(uuid: string, patch: Partial<Pick<User, 'name' | 'calendarId' | 'phone'>>) {
   const db = load();
-  assert(findUser(db, uuid), 'ユーザーが見つかりません');
-  commit({ ...db, users: db.users.map((u) => (u.uuid === uuid ? { ...u, ...patch } : u)) });
+  const cur = findUser(db, uuid);
+  assert(cur, 'ユーザーが見つかりません');
+  const next = { ...cur, ...patch };
+  commit({ ...db, users: db.users.map((u) => (u.uuid === uuid ? next : u)) });
+  await putDoc('users', next);
 }
 
 export async function saveEvent(input: Omit<EventItem, 'uuid' | 'createdAt'> & { uuid?: string }) {
@@ -148,10 +188,12 @@ export async function saveEvent(input: Omit<EventItem, 'uuid' | 'createdAt'> & {
     assert(cur && cur.leaderUuid === leader.uuid, 'このイベントは編集できません');
     const next = { ...cur, ...input, uuid: cur.uuid, leaderUuid: cur.leaderUuid };
     commit({ ...db, events: db.events.map((e) => (e.uuid === cur.uuid ? next : e)) });
+    await putDoc('events', next);
     return next;
   }
   const ev: EventItem = { ...input, uuid: newId(), createdAt: now() };
   commit({ ...db, events: [...db.events, ev] });
+  await putDoc('events', ev);
   return ev;
 }
 
@@ -159,11 +201,13 @@ export async function deleteEvent(leaderUuid: string, eventUuid: string) {
   const db = load();
   const ev = db.events.find((e) => e.uuid === eventUuid);
   assert(ev && ev.leaderUuid === leaderUuid, 'このイベントは削除できません');
+  const targetInvs = db.invitations.filter((i) => i.eventUuid === eventUuid);
   commit({
     ...db,
     events: db.events.filter((e) => e.uuid !== eventUuid),
     invitations: db.invitations.filter((i) => i.eventUuid !== eventUuid),
   });
+  await Promise.all([removeDoc('events', eventUuid), ...targetInvs.map((i) => removeDoc('invitations', i.uuid))]);
 }
 
 /** 招待を追加：イベントのリーダー配下のメンバーだけ招待できる */
@@ -190,6 +234,7 @@ export async function inviteMembers(leaderUuid: string, eventUuid: string, membe
     });
   }
   commit({ ...db, invitations: [...db.invitations, ...added] });
+  await Promise.all(added.map((a) => putDoc('invitations', a)));
   return added.length;
 }
 
@@ -198,6 +243,7 @@ export async function removeInvitation(leaderUuid: string, invitationUuid: strin
   const inv = db.invitations.find((i) => i.uuid === invitationUuid);
   assert(inv && inv.leaderUuid === leaderUuid, '削除できません');
   commit({ ...db, invitations: db.invitations.filter((i) => i.uuid !== invitationUuid) });
+  await removeDoc('invitations', invitationUuid);
 }
 
 /** 返答：本人の招待だけ。同行者は本人が紹介した人だけ */
@@ -219,22 +265,82 @@ export async function respondInvitation(
     respondedAt: now(),
   };
   commit({ ...db, invitations: db.invitations.map((i) => (i.uuid === inv.uuid ? next : i)) });
+  await putDoc('invitations', next);
 }
 
-/** 未返答者へのリマインド（現在は記録のみ。プッシュ送信は後日サーバー側で実装） */
+/**
+ * LINE の案内リンクから開いた人（高齢の方・イベント案内を見るだけの方）が
+ * 会員番号なしで名前を選ぶ／入力するだけで出欠返答できるようにする。
+ */
+export async function respondByGuestName(
+  eventUuid: string,
+  name: string,
+  status: Exclude<RsvpStatus, 'pending'>,
+) {
+  const db = load();
+  const ev = db.events.find((e) => e.uuid === eventUuid);
+  assert(ev, 'イベントが見つかりません');
+  const trimmed = name.trim();
+  assert(trimmed, 'お名前を入力してください');
+
+  let member = db.users.find((u) => u.leaderUuid === ev.leaderUuid && u.name === trimmed) ?? null;
+  let users = db.users;
+  let createdMember = false;
+  if (!member) {
+    member = {
+      uuid: newId(),
+      memberNo: '',
+      name: trimmed,
+      roles: ['member'],
+      leaderUuid: ev.leaderUuid,
+      calendarId: null,
+      points: 0,
+      createdAt: now(),
+    };
+    users = [...db.users, member];
+    createdMember = true;
+  }
+
+  const existing = db.invitations.find((i) => i.eventUuid === ev.uuid && i.memberUuid === member.uuid);
+  const t = now();
+  const targetInv: Invitation = existing
+    ? { ...existing, status, respondedAt: t }
+    : {
+        uuid: newId(),
+        eventUuid: ev.uuid,
+        leaderUuid: ev.leaderUuid,
+        memberUuid: member.uuid,
+        status,
+        companionUuids: [],
+        respondedAt: t,
+        remindedAt: null,
+        createdAt: t,
+      };
+  const invitations = existing
+    ? db.invitations.map((i) => (i.uuid === existing.uuid ? targetInv : i))
+    : [...db.invitations, targetInv];
+
+  commit({ ...db, users, invitations });
+  await Promise.all([createdMember ? putDoc('users', member) : Promise.resolve(), putDoc('invitations', targetInv)]);
+  return member;
+}
+
+/** 未返答者へのリマインド */
 export async function remindPending(leaderUuid: string, eventUuid: string) {
   const db = load();
   const ev = db.events.find((e) => e.uuid === eventUuid);
   assert(ev && ev.leaderUuid === leaderUuid, 'このイベントは操作できません');
   const t = now();
-  let count = 0;
+  const updated: Invitation[] = [];
   const invitations = db.invitations.map((i) => {
     if (i.eventUuid === eventUuid && i.status === 'pending') {
-      count++;
-      return { ...i, remindedAt: t };
+      const next = { ...i, remindedAt: t };
+      updated.push(next);
+      return next;
     }
     return i;
   });
   commit({ ...db, invitations });
-  return count;
+  await Promise.all(updated.map((u) => putDoc('invitations', u)));
+  return updated.length;
 }

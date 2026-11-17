@@ -5,11 +5,12 @@ export type Mode = Role; // 今表示している画面
 
 export interface User {
   uuid: string;
-  memberNo: string; // 会員番号（7桁）
+  memberNo: string; // 会員番号（7桁。イベント案内のみの方は空文字も可）
   name: string;
+  phone?: string; // 電話番号（メンバーからリーダーへワンタップ電話用）
   roles: Role[];
   leaderUuid: string | null; // 担当リーダー（users.uuid）
-  calendarId: string | null; // リーダーの Google カレンダー ID
+  calendarId: string | null;
   points: number;
   createdAt: string;
 }

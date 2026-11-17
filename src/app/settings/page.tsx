@@ -1,5 +1,5 @@
 'use client';
-import { Bell, Calendar, RotateCcw, Type } from 'lucide-react';
+import { Bell, Phone, RotateCcw, Type } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
 import { PageTitle, Segmented, useToast } from '@/components/ui';
@@ -17,10 +17,10 @@ function Settings({ user }: { user: User }) {
   const scale = useFontScale();
   const toast = useToast();
   const [perm, setPerm] = useState<string>('default');
-  const [cal, setCal] = useState(user.calendarId ?? '');
+  const [phone, setPhone] = useState(user.phone ?? '');
 
   useEffect(() => setPerm(notifyPermission()), []);
-  useEffect(() => setCal(user.calendarId ?? ''), [user.calendarId]);
+  useEffect(() => setPhone(user.phone ?? ''), [user.phone]);
 
   return (
     <>
@@ -68,20 +68,21 @@ function Settings({ user }: { user: User }) {
 
         {user.roles.includes('leader') && (
           <section className="card flex flex-col gap-3">
-            <label className="flex items-center gap-2 font-bold" htmlFor="cal">
-              <Calendar size={22} className="accent" /> Google カレンダー ID
+            <label className="flex items-center gap-2 font-bold" htmlFor="phone">
+              <Phone size={22} className="accent" /> 連絡先電話番号（メンバー画面に表示）
             </label>
             <input
-              id="cal"
+              id="phone"
+              inputMode="tel"
               className="field !text-base"
-              placeholder="xxx@group.calendar.google.com"
-              value={cal}
-              onChange={(e) => setCal(e.target.value)}
+              placeholder="090-0000-0000"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
             <button
               className="btn-primary"
               onClick={async () => {
-                await updateUser(user.uuid, { calendarId: cal.trim() || null });
+                await updateUser(user.uuid, { phone: phone.trim() });
                 toast('保存しました');
               }}
             >

@@ -2,11 +2,11 @@
 import { CalendarDays, Check, MapPin, Plus, UserRound, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/AppShell';
-import { GoogleCalendar } from '@/components/GoogleCalendar';
+import { MonthCalendar } from '@/components/MonthCalendar';
 import { Empty, PageTitle, Segmented, useToast } from '@/components/ui';
 import { Sheet } from '@/components/ui/Sheet';
 import { fmtDate, fmtTime } from '@/lib/date';
-import { addReferral, findUser, invitationsOfMember, referralsOf, respondInvitation, useDB } from '@/lib/store';
+import { addReferral, invitationsOfMember, referralsOf, respondInvitation, useDB } from '@/lib/store';
 import type { EventItem, Invitation, User } from '@/lib/types';
 
 export default function Page() {
@@ -15,7 +15,6 @@ export default function Page() {
 
 function Events({ user }: { user: User }) {
   const db = useDB();
-  const leader = findUser(db, user.leaderUuid);
   const [view, setView] = useState<'card' | 'cal'>('card');
   const [answering, setAnswering] = useState<Invitation | null>(null);
   const toast = useToast();
@@ -29,41 +28,45 @@ function Events({ user }: { user: User }) {
     [db, user.uuid],
   );
 
+  const renderCard = (ev: EventItem, inv: Invitation) => (
+    <EventCard
+      key={inv.uuid}
+      ev={ev}
+      inv={inv}
+      companions={inv.companionUuids.map((c) => db.referrals.find((r) => r.uuid === c)?.name).filter(Boolean) as string[]}
+      onYes={() => setAnswering(inv)}
+      onNo={async () => {
+        await respondInvitation(user.uuid, inv.uuid, 'no', []);
+        toast('お返事しました');
+      }}
+    />
+  );
+
   return (
     <>
       <PageTitle>イベント</PageTitle>
 
-      {leader?.calendarId && (
-        <Segmented
-          value={view}
-          onChange={setView}
-          options={[
-            { value: 'card', label: 'カード' },
-            { value: 'cal', label: 'カレンダー' },
-          ]}
-        />
-      )}
+      <Segmented
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'card', label: 'カード' },
+          { value: 'cal', label: 'カレンダー' },
+        ]}
+      />
 
-      {view === 'cal' && leader?.calendarId ? (
-        <GoogleCalendar calendarId={leader.calendarId} />
-      ) : items.length === 0 ? (
+      {items.length === 0 ? (
         <Empty icon={CalendarDays} label="イベントはありません" />
+      ) : view === 'cal' ? (
+        <MonthCalendar
+          events={items.map((x) => x.ev)}
+          renderEvent={(ev) => {
+            const found = items.find((x) => x.ev.uuid === ev.uuid);
+            return found ? renderCard(found.ev, found.inv) : null;
+          }}
+        />
       ) : (
-        <div className="flex flex-col gap-4">
-          {items.map(({ inv, ev }) => (
-            <EventCard
-              key={inv.uuid}
-              ev={ev}
-              inv={inv}
-              companions={inv.companionUuids.map((c) => db.referrals.find((r) => r.uuid === c)?.name).filter(Boolean) as string[]}
-              onYes={() => setAnswering(inv)}
-              onNo={async () => {
-                await respondInvitation(user.uuid, inv.uuid, 'no', []);
-                toast('お返事しました');
-              }}
-            />
-          ))}
-        </div>
+        <div className="flex flex-col gap-4">{items.map(({ inv, ev }) => renderCard(ev, inv))}</div>
       )}
 
       <CompanionSheet user={user} inv={answering} onClose={() => setAnswering(null)} />
@@ -104,7 +107,7 @@ function EventCard({
           )}
         </div>
       </div>
-      {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-3 text-base">{ev.note}</p>}
+      {ev.note && <p className="rounded-2xl bg-white/60 px-4 py-3 text-base leading-relaxed">{ev.note}</p>}
 
       {inv.status === 'pending' ? (
         <div className="grid grid-cols-2 gap-3">
