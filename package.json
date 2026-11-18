@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "deploy": "next build && wrangler deploy",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "sync": "git fetch origin && git pull --rebase origin main"
   },
   "dependencies": {
     "firebase": "^13.4.0",

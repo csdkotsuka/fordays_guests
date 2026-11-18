@@ -4,6 +4,8 @@
 > ルールを追加・変更したときは、このファイルを更新すること。
 
 ## 0. 作業の進め方
+- **開発開始前に必ず GitHub の最新状態を確認する**：
+  作業を始める前に `git fetch origin` を実行し、`git status -sb` でローカルが `origin/main` より遅れている（`behind`）場合は、まず `git pull --rebase origin main`（`npm run sync`）で最新化してから開発を進める。ローカルに未コミット変更がある場合は確認・退避してから同期する。
 - 作業が一区切りしたら、**毎回ユーザーに確認せず** `git add -A && git commit && git push` する（GitHub: https://github.com/csdkotsuka/fordays_guests ）。
 - `main` に push すると Cloudflare（Workers + 静的アセット、`wrangler.jsonc`）が自動でビルド・デプロイする。
 - push 前に `npm run build` が通ることを確認する。

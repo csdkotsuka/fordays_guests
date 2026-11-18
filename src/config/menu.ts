@@ -3,6 +3,7 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
+  BookOpen,
   CalendarDays,
   Gift,
   Home,
@@ -32,6 +33,7 @@ export const MENU: Record<Mode, MenuItem[]> = {
     { href: '/m/products/', label: '製品', icon: ShoppingBag },
     { href: '/m/change/', label: '定期購入の変更', icon: RefreshCcw },
     { href: '/m/pause/', label: '一時休止', icon: PauseCircle },
+    { href: '/guide/', label: '使い方', icon: BookOpen },
     { href: '/settings/', label: '設定', icon: Settings },
   ],
   leader: [
@@ -39,6 +41,7 @@ export const MENU: Record<Mode, MenuItem[]> = {
     { href: '/l/events/', label: 'イベント', icon: CalendarDays },
     { href: '/l/members/', label: 'メンバー', icon: Users },
     { href: '/messages/', label: 'メッセージ', icon: MessageCircle },
+    { href: '/guide/', label: '使い方', icon: BookOpen },
     { href: '/settings/', label: '設定', icon: Settings },
   ],
   admin: [
